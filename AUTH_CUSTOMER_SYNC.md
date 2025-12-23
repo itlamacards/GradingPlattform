@@ -43,17 +43,20 @@ Wenn ein Benutzer in Supabase Auth erstellt wird:
 --   - Name wird aus user_metadata extrahiert
 ```
 
-### 2. Customer → Auth User (Automatisch)
+### 2. Customer → Auth User (Synchronisation)
+
+**⚠️ WICHTIG:** Auth Users können **NICHT** direkt über SQL erstellt werden!
 
 Wenn ein Kunde in der `customers` Tabelle erstellt wird:
 - Trigger `on_customer_created` wird ausgelöst
-- Function `handle_new_customer()` erstellt automatisch einen Auth User
-- Standard-Passwort: `TempPass123!` (User sollte es ändern)
+- Function `handle_new_customer()` prüft, ob ein Auth User existiert
+- Falls Auth User existiert: IDs werden synchronisiert
+- Falls kein Auth User existiert: Warnung wird ausgegeben
 
-**⚠️ WICHTIG:** 
-- Der Auth User wird mit der **gleichen UUID** wie der Kunde erstellt
-- Das Passwort ist `TempPass123!` - sollte nach erstem Login geändert werden
-- User ist automatisch bestätigt (confirmed_at = NOW())
+**Richtiger Workflow:**
+1. Erstelle Auth User über **Supabase Auth API** (`signUp`) oder **Dashboard**
+2. → Automatisch wird ein Kunde erstellt (durch Trigger `on_auth_user_created`)
+3. Die IDs werden automatisch synchronisiert
 
 ### 3. Updates werden synchronisiert
 
@@ -111,22 +114,25 @@ Die Functions verwenden `ON CONFLICT (email) DO UPDATE` bzw. `ON CONFLICT (email
 SELECT * FROM customers WHERE email = 'neue-email@example.com';
 ```
 
-### Test 2: Kunde erstellen → Auth User wird erstellt
+### Test 2: Auth User erstellen → Kunde wird automatisch erstellt
 
-1. Erstelle einen neuen Kunden:
-```sql
-INSERT INTO customers (customer_number, first_name, last_name, email, phone)
-VALUES ('K-2024-9999', 'Test', 'User', 'test@example.com', '+49 123 456789');
-```
+1. Erstelle einen Auth User über Supabase Dashboard oder API:
+   - Gehe zu: Authentication → Users → Add user
+   - Email: `test@example.com`
+   - Password: `Test123!`
+   - Auto Confirm User: ✅
+   - Send invitation email: ❌
 
-2. Prüfe, ob automatisch ein Auth User erstellt wurde:
+2. Prüfe, ob automatisch ein Kunde erstellt wurde:
 ```sql
-SELECT * FROM auth.users WHERE email = 'test@example.com';
+SELECT * FROM customers WHERE email = 'test@example.com';
 ```
 
 3. Versuche dich einzuloggen mit:
    - Email: `test@example.com`
-   - Password: `TempPass123!`
+   - Password: `Test123!`
+
+**⚠️ WICHTIG:** Erstelle immer zuerst den Auth User, dann wird automatisch der Kunde erstellt!
 
 ---
 
