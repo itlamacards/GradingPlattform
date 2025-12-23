@@ -34,14 +34,19 @@ Die Benutzer müssen in **Supabase Authentication** erstellt werden, da die App 
 **Benutzer 1:**
 - **Email**: `a.antipin@lamacards.de`
 - **Password**: `Test123!`
-- **Auto Confirm User**: ✅ (aktivieren)
-- **Send invitation email**: ❌ (deaktivieren)
+- **Auto Confirm User**: ✅ **WICHTIG: Aktivieren!** (sonst funktioniert Login nicht)
+- **Send invitation email**: ❌ **Deaktivieren** (verhindert localhost-URL Problem)
 
 **Benutzer 2:**
 - **Email**: `it@lamacards.de`
 - **Password**: `Test123!`
-- **Auto Confirm User**: ✅ (aktivieren)
-- **Send invitation email**: ❌ (deaktivieren)
+- **Auto Confirm User**: ✅ **WICHTIG: Aktivieren!** (sonst funktioniert Login nicht)
+- **Send invitation email**: ❌ **Deaktivieren** (verhindert localhost-URL Problem)
+
+**⚠️ WICHTIG:** 
+- Wenn "Send invitation email" aktiviert ist, sendet Supabase eine E-Mail mit einer localhost-URL
+- Für Vercel-Deployment: **"Send invitation email" deaktivieren** und **"Auto Confirm User" aktivieren**
+- Siehe auch: `SUPABASE_AUTH_CONFIG.md` für URL-Konfiguration
 
 #### Option B: Über SQL (mit Service Role Key)
 
