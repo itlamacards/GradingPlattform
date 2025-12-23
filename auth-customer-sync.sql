@@ -16,7 +16,26 @@ DECLARE
     v_customer_number TEXT;
     v_first_name TEXT;
     v_last_name TEXT;
+    v_existing_customer_id UUID;
 BEGIN
+    -- Prüfe ob Kunde bereits existiert
+    SELECT id INTO v_existing_customer_id
+    FROM public.customers
+    WHERE email = NEW.email OR id = NEW.id;
+    
+    -- Wenn Kunde bereits existiert, nur ID synchronisieren falls nötig
+    IF v_existing_customer_id IS NOT NULL THEN
+        UPDATE public.customers
+        SET
+            id = NEW.id,  -- Stelle sicher, dass ID synchronisiert ist
+            email = NEW.email,
+            phone = COALESCE(NEW.phone, phone),
+            updated_at = NOW()
+        WHERE id = v_existing_customer_id OR email = NEW.email;
+        
+        RETURN NEW;
+    END IF;
+    
     -- Extrahiere Name aus user_metadata falls vorhanden
     v_first_name := COALESCE(
         NEW.raw_user_meta_data->>'first_name',
@@ -28,32 +47,60 @@ BEGIN
         ''
     );
     
-    -- Generiere Kundennummer
-    v_customer_number := 'K-' || TO_CHAR(NOW(), 'YYYY') || '-' || 
-        LPAD((SELECT COALESCE(MAX(CAST(SUBSTRING(customer_number FROM '[0-9]+$') AS INTEGER)), 0) + 1 
-              FROM customers 
-              WHERE customer_number LIKE 'K-' || TO_CHAR(NOW(), 'YYYY') || '-%')::TEXT, 4, '0');
+    -- Generiere Kundennummer (sicherer mit einfacherer Logik)
+    BEGIN
+        SELECT 'K-' || TO_CHAR(NOW(), 'YYYY') || '-' || 
+               LPAD(
+                   COALESCE(
+                       (SELECT MAX(CAST(SUBSTRING(customer_number FROM '[0-9]+$') AS INTEGER)) 
+                        FROM customers 
+                        WHERE customer_number ~ ('^K-' || TO_CHAR(NOW(), 'YYYY') || '-[0-9]+$')),
+                       0
+                   ) + 1,
+                   4, '0'
+               ) INTO v_customer_number;
+    EXCEPTION WHEN OTHERS THEN
+        -- Fallback: Verwende Timestamp-basierte Nummer
+        v_customer_number := 'K-' || TO_CHAR(NOW(), 'YYYY') || '-' || 
+                            TO_CHAR(EXTRACT(EPOCH FROM NOW())::BIGINT, 'FM0000');
+    END;
     
     -- Erstelle Kunde in customers Tabelle
     -- WICHTIG: id muss mit auth.users id übereinstimmen für RLS!
-    INSERT INTO public.customers (
-        id,  -- Verwende die gleiche UUID wie auth.users
-        customer_number,
-        first_name,
-        last_name,
-        email,
-        phone
-    ) VALUES (
-        NEW.id,  -- Gleiche UUID wie Auth User
-        v_customer_number,
-        v_first_name,
-        v_last_name,
-        NEW.email,
-        COALESCE(NEW.phone, NULL)
-    )
-    ON CONFLICT (email) DO UPDATE SET
-        id = NEW.id,  -- Stelle sicher, dass ID synchronisiert ist
-        updated_at = NOW();
+    BEGIN
+        INSERT INTO public.customers (
+            id,  -- Verwende die gleiche UUID wie auth.users
+            customer_number,
+            first_name,
+            last_name,
+            email,
+            phone
+        ) VALUES (
+            NEW.id,  -- Gleiche UUID wie Auth User
+            v_customer_number,
+            v_first_name,
+            v_last_name,
+            NEW.email,
+            COALESCE(NEW.phone, NULL)
+        )
+        ON CONFLICT (id) DO UPDATE SET
+            email = NEW.email,
+            customer_number = COALESCE(EXCLUDED.customer_number, customers.customer_number),
+            first_name = COALESCE(EXCLUDED.first_name, customers.first_name),
+            last_name = COALESCE(EXCLUDED.last_name, customers.last_name),
+            phone = COALESCE(EXCLUDED.phone, customers.phone),
+            updated_at = NOW()
+        ON CONFLICT (email) DO UPDATE SET
+            id = NEW.id,  -- Stelle sicher, dass ID synchronisiert ist
+            updated_at = NOW();
+    EXCEPTION WHEN OTHERS THEN
+        -- Log Fehler aber verhindere, dass der Auth User nicht erstellt wird
+        RAISE WARNING 'Fehler beim Erstellen des Kunden für %: %', NEW.email, SQLERRM;
+        -- Versuche Update falls Kunde mit anderer ID existiert
+        UPDATE public.customers
+        SET id = NEW.id, updated_at = NOW()
+        WHERE email = NEW.email AND id != NEW.id;
+    END;
     
     RETURN NEW;
 END;
