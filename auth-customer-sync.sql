@@ -68,6 +68,7 @@ BEGIN
     -- Erstelle Kunde in customers Tabelle
     -- WICHTIG: id muss mit auth.users id übereinstimmen für RLS!
     BEGIN
+        -- Versuche zuerst INSERT
         INSERT INTO public.customers (
             id,  -- Verwende die gleiche UUID wie auth.users
             customer_number,
@@ -89,17 +90,26 @@ BEGIN
             first_name = COALESCE(EXCLUDED.first_name, customers.first_name),
             last_name = COALESCE(EXCLUDED.last_name, customers.last_name),
             phone = COALESCE(EXCLUDED.phone, customers.phone),
-            updated_at = NOW()
-        ON CONFLICT (email) DO UPDATE SET
-            id = NEW.id,  -- Stelle sicher, dass ID synchronisiert ist
             updated_at = NOW();
+    EXCEPTION WHEN unique_violation THEN
+        -- Falls E-Mail-Konflikt, update die ID
+        UPDATE public.customers
+        SET 
+            id = NEW.id,
+            updated_at = NOW()
+        WHERE email = NEW.email AND id != NEW.id;
     EXCEPTION WHEN OTHERS THEN
         -- Log Fehler aber verhindere, dass der Auth User nicht erstellt wird
         RAISE WARNING 'Fehler beim Erstellen des Kunden für %: %', NEW.email, SQLERRM;
         -- Versuche Update falls Kunde mit anderer ID existiert
-        UPDATE public.customers
-        SET id = NEW.id, updated_at = NOW()
-        WHERE email = NEW.email AND id != NEW.id;
+        BEGIN
+            UPDATE public.customers
+            SET id = NEW.id, updated_at = NOW()
+            WHERE email = NEW.email AND id != NEW.id;
+        EXCEPTION WHEN OTHERS THEN
+            -- Ignoriere Update-Fehler
+            NULL;
+        END;
     END;
     
     RETURN NEW;
