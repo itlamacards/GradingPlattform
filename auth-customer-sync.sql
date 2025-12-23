@@ -72,13 +72,15 @@ CREATE TRIGGER on_auth_user_created
     EXECUTE FUNCTION public.handle_new_auth_user();
 
 -- ============================================
--- FUNCTION 2: Erstelle Auth User wenn Kunde erstellt wird
+-- FUNCTION 2: Prüfe und synchronisiere Auth User wenn Kunde erstellt wird
 -- ============================================
+-- HINWEIS: Auth Users können nicht direkt über SQL erstellt werden.
+-- Verwende stattdessen die Supabase Auth API (signUp) oder das Dashboard.
+-- Diese Function stellt nur sicher, dass die IDs synchronisiert sind.
 
 CREATE OR REPLACE FUNCTION public.handle_new_customer()
 RETURNS TRIGGER AS $$
 DECLARE
-    v_password TEXT;
     v_user_id UUID;
 BEGIN
     -- Prüfe ob bereits ein Auth User mit dieser E-Mail existiert
@@ -86,101 +88,22 @@ BEGIN
     FROM auth.users
     WHERE email = NEW.email;
     
-    -- Wenn kein User existiert, erstelle einen
-    IF v_user_id IS NULL THEN
-        -- Generiere ein temporäres Passwort (User muss es ändern)
-        -- Oder verwende ein Standard-Passwort
-        v_password := 'TempPass123!';
-        
-        -- Erstelle Auth User über Supabase Auth
-        -- HINWEIS: Dies funktioniert nur mit Service Role Key oder über die Management API
-        -- Für direkte DB-Erstellung müssen wir die auth.users Tabelle verwenden
-        
-        -- Alternative: Verwende Supabase Management API oder eine Edge Function
-        -- Hier erstellen wir den User direkt in auth.users (nur mit Service Role möglich)
-        
-        -- Erstelle Auth User mit der gleichen UUID wie der Kunde
-        -- WICHTIG: id muss mit customers.id übereinstimmen für RLS!
-        INSERT INTO auth.users (
-            instance_id,
-            id,  -- Verwende die gleiche UUID wie customers
-            aud,
-            role,
-            email,
-            encrypted_password,
-            email_confirmed_at,
-            invited_at,
-            confirmation_token,
-            confirmation_sent_at,
-            recovery_token,
-            recovery_sent_at,
-            email_change_token_new,
-            email_change,
-            email_change_sent_at,
-            last_sign_in_at,
-            raw_app_meta_data,
-            raw_user_meta_data,
-            is_super_admin,
-            created_at,
-            updated_at,
-            phone,
-            phone_confirmed_at,
-            phone_change,
-            phone_change_token,
-            phone_change_sent_at,
-            confirmed_at,
-            email_change_token_current,
-            email_change_confirm_status,
-            banned_until,
-            reauthentication_token,
-            reauthentication_sent_at,
-            is_sso_user,
-            deleted_at
-        ) VALUES (
-            '00000000-0000-0000-0000-000000000000', -- instance_id
-            NEW.id,  -- Gleiche UUID wie Customer
-            'authenticated', -- aud
-            'authenticated', -- role
-            NEW.email, -- email
-            crypt(v_password, gen_salt('bf')), -- encrypted_password (gehasht)
-            NOW(), -- email_confirmed_at (auto-confirm)
-            NULL, -- invited_at
-            '', -- confirmation_token
-            NULL, -- confirmation_sent_at
-            '', -- recovery_token
-            NULL, -- recovery_sent_at
-            '', -- email_change_token_new
-            '', -- email_change
-            NULL, -- email_change_sent_at
-            NULL, -- last_sign_in_at
-            jsonb_build_object('provider', 'email', 'providers', ARRAY['email']), -- raw_app_meta_data
-            jsonb_build_object(
-                'first_name', NEW.first_name,
-                'last_name', NEW.last_name,
-                'email_verified', true
-            ), -- raw_user_meta_data
-            false, -- is_super_admin
-            NOW(), -- created_at
-            NOW(), -- updated_at
-            NEW.phone, -- phone
-            NULL, -- phone_confirmed_at
-            '', -- phone_change
-            '', -- phone_change_token
-            NULL, -- phone_change_sent_at
-            NOW(), -- confirmed_at (auto-confirm)
-            '', -- email_change_token_current
-            0, -- email_change_confirm_status
-            NULL, -- banned_until
-            '', -- reauthentication_token
-            NULL, -- reauthentication_sent_at
-            false, -- is_sso_user
-            NULL -- deleted_at
-        )
-        ON CONFLICT (email) DO NOTHING;
-        
-        RAISE NOTICE 'Auth User erstellt für: %', NEW.email;
+    -- Wenn Auth User existiert, stelle sicher, dass die IDs übereinstimmen
+    IF v_user_id IS NOT NULL THEN
+        -- Update customer ID falls sie nicht übereinstimmt
+        IF v_user_id != NEW.id THEN
+            UPDATE public.customers
+            SET id = v_user_id
+            WHERE id = NEW.id;
+            
+            RAISE NOTICE 'Customer ID angepasst für: % (Auth User ID: %)', NEW.email, v_user_id;
+        ELSE
+            RAISE NOTICE 'Customer und Auth User sind bereits synchronisiert für: %', NEW.email;
+        END IF;
     ELSE
-        RAISE NOTICE 'Auth User existiert bereits für: %', NEW.email;
+        -- Wenn kein Auth User existiert, nur Warnung ausgeben
+        -- Auth User muss über Supabase Auth API oder Dashboard erstellt werden
+        RAISE WARNING 'Kein Auth User gefunden für: %. Bitte erstelle den Auth User über Supabase Auth API (signUp) oder Dashboard. Der Kunde wurde erstellt, aber ohne Auth User kann sich der Benutzer nicht einloggen.', NEW.email;
     END IF;
     
     RETURN NEW;
@@ -233,19 +156,28 @@ CREATE TRIGGER on_auth_user_updated
 
 CREATE OR REPLACE FUNCTION public.handle_customer_updated()
 RETURNS TRIGGER AS $$
+DECLARE
+    v_user_exists BOOLEAN;
 BEGIN
-    -- Update Auth User wenn E-Mail oder andere Daten geändert wurden
-    UPDATE auth.users
-    SET
-        email = NEW.email,
-        phone = COALESCE(NEW.phone, phone),
-        raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || 
-            jsonb_build_object(
-                'first_name', NEW.first_name,
-                'last_name', NEW.last_name
-            ),
-        updated_at = NOW()
-    WHERE email = OLD.email OR email = NEW.email;
+    -- Prüfe ob Auth User existiert
+    SELECT EXISTS(SELECT 1 FROM auth.users WHERE email = OLD.email OR email = NEW.email) INTO v_user_exists;
+    
+    IF v_user_exists THEN
+        -- Update Auth User wenn E-Mail oder andere Daten geändert wurden
+        UPDATE auth.users
+        SET
+            email = NEW.email,
+            phone = COALESCE(NEW.phone, phone),
+            raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || 
+                jsonb_build_object(
+                    'first_name', NEW.first_name,
+                    'last_name', NEW.last_name
+                ),
+            updated_at = NOW()
+        WHERE email = OLD.email OR email = NEW.email;
+    ELSE
+        RAISE NOTICE 'Kein Auth User gefunden für Update: %', NEW.email;
+    END IF;
     
     RETURN NEW;
 END;
