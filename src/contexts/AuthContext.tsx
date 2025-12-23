@@ -82,9 +82,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     setLoading(true)
+    console.log('🔐 signIn aufgerufen:', { email })
+    
     try {
       // Admin-Login (hardcoded für Demo)
       if (email === 'admin@admin.de' && password === 'admin') {
+        console.log('✅ Admin-Login erkannt')
         setIsAdmin(true)
         setUser({ id: 'admin', email: 'admin@admin.de' } as User)
         setLoading(false)
@@ -92,9 +95,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Normaler Login mit Supabase Auth
-      await authService.signIn(email, password)
+      console.log('🔐 Versuche Supabase Auth Login...')
+      const result = await authService.signIn(email, password)
+      console.log('✅ Supabase Auth Login erfolgreich:', result)
       // User wird durch onAuthStateChange gesetzt
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ signIn Fehler:', error)
+      console.error('Fehler-Details:', {
+        message: error?.message,
+        status: error?.status,
+        error: error?.error
+      })
       setLoading(false)
       throw error
     }

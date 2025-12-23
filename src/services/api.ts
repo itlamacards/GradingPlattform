@@ -7,12 +7,18 @@ import { supabase } from '../lib/supabase'
 export const authService = {
   // Login mit E-Mail und Passwort
   async signIn(email: string, password: string) {
+    console.log('🔐 authService.signIn aufgerufen:', { email })
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
     
-    if (error) throw error
+    if (error) {
+      console.error('❌ Supabase Auth Fehler:', error)
+      throw error
+    }
+    
+    console.log('✅ Supabase Auth erfolgreich:', { user: data?.user?.email })
     return data
   },
 

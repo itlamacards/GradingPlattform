@@ -13,11 +13,17 @@ function Login() {
     setError('')
     setLoading(true)
     
+    console.log('🔐 Login-Versuch:', { email })
+    
     try {
       await signIn(email, password)
+      console.log('✅ Login erfolgreich')
       // Navigation wird durch AuthContext gehandhabt
     } catch (err: any) {
-      setError(err.message || 'Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.')
+      console.error('❌ Login-Fehler:', err)
+      const errorMessage = err?.message || err?.error?.message || 'Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.'
+      setError(errorMessage)
+      console.log('Fehlermeldung:', errorMessage)
     } finally {
       setLoading(false)
     }
@@ -87,7 +93,11 @@ function Login() {
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-shake">
-                {error}
+                <strong>Fehler:</strong> {error}
+                <br />
+                <small className="text-red-600 mt-1 block">
+                  Bitte öffne die Browser-Konsole (F12) für mehr Details.
+                </small>
               </div>
             )}
 
