@@ -91,24 +91,30 @@ BEGIN
             last_name = COALESCE(EXCLUDED.last_name, customers.last_name),
             phone = COALESCE(EXCLUDED.phone, customers.phone),
             updated_at = NOW();
-    EXCEPTION WHEN unique_violation THEN
-        -- Falls E-Mail-Konflikt, update die ID
-        UPDATE public.customers
-        SET 
-            id = NEW.id,
-            updated_at = NOW()
-        WHERE email = NEW.email AND id != NEW.id;
     EXCEPTION WHEN OTHERS THEN
-        -- Log Fehler aber verhindere, dass der Auth User nicht erstellt wird
-        RAISE WARNING 'Fehler beim Erstellen des Kunden für %: %', NEW.email, SQLERRM;
-        -- Versuche Update falls Kunde mit anderer ID existiert
+        -- Bei jedem Fehler: Versuche Update falls Kunde mit anderer ID oder E-Mail existiert
         BEGIN
+            -- Versuche Update über E-Mail
             UPDATE public.customers
-            SET id = NEW.id, updated_at = NOW()
-            WHERE email = NEW.email AND id != NEW.id;
+            SET 
+                id = NEW.id,
+                email = NEW.email,
+                phone = COALESCE(NEW.phone, phone),
+                updated_at = NOW()
+            WHERE email = NEW.email;
+            
+            -- Falls kein Update stattfand, versuche über ID
+            IF NOT FOUND THEN
+                UPDATE public.customers
+                SET 
+                    email = NEW.email,
+                    phone = COALESCE(NEW.phone, phone),
+                    updated_at = NOW()
+                WHERE id = NEW.id;
+            END IF;
         EXCEPTION WHEN OTHERS THEN
-            -- Ignoriere Update-Fehler
-            NULL;
+            -- Ignoriere Update-Fehler - Auth User soll trotzdem erstellt werden
+            RAISE WARNING 'Konnte Kunde nicht erstellen oder aktualisieren für %: %', NEW.email, SQLERRM;
         END;
     END;
     
