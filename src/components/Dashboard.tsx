@@ -64,7 +64,7 @@ function Dashboard() {
   }
 
   // Fallback: Wenn keine Daten geladen werden konnten, zeige Demo-Daten
-  const displayOrders = orders.length > 0 ? orders : [
+  const displayOrders: Order[] = orders.length > 0 ? orders : [
     {
       id: '1',
       orderNumber: 'ORD-2024-001',

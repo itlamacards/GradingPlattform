@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Höre auf Auth-Änderungen
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (_event, session) => {
         if (session?.user) {
           setUser(session.user)
           // Versuche Customer-ID aus user metadata zu holen oder aus customers Tabelle
@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const loadCustomerData = async (userId: string, email: string) => {
+  const loadCustomerData = async (_userId: string, email: string) => {
     try {
       // Prüfe ob Admin (hardcoded für Demo)
       if (email === 'admin@admin.de') {
