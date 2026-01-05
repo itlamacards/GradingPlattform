@@ -86,3 +86,5 @@ WHERE email = 'DEINE-EMAIL@example.com'
 AND id != (SELECT id FROM auth.users WHERE email = customers.email);
 */
 
+
+

@@ -1,16 +1,8 @@
 import { useState } from 'react'
 import OrderDetails from './OrderDetails'
-
 import { useAuth } from '../contexts/AuthContext'
-
-interface Card {
-  id: string
-  name: string
-  type: string
-  status: 'pending' | 'grading' | 'completed'
-  grade?: string
-  notes?: string
-}
+import { UICard } from '../types'
+import { formatDate } from '../utils/dateHelpers'
 
 interface GradingResult {
   id: string
@@ -23,7 +15,7 @@ interface GradingResult {
   completionDate: string
   images: string[]
   notes: string
-  cards?: Card[]
+  cards?: UICard[]
 }
 
 function AdminResults() {
@@ -242,13 +234,13 @@ function AdminResults() {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Eingereicht:</span>
                   <span className="font-medium text-gray-800">
-                    {new Date(result.submissionDate).toLocaleDateString('de-DE')}
+                    {formatDate(result.submissionDate)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Abgeschlossen:</span>
                   <span className="font-medium text-gray-800">
-                    {new Date(result.completionDate).toLocaleDateString('de-DE')}
+                    {formatDate(result.completionDate)}
                   </span>
                 </div>
               </div>

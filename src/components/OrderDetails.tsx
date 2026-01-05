@@ -1,47 +1,16 @@
-interface Card {
-  id: string
-  name: string
-  type: string
-  status: 'pending' | 'grading' | 'completed'
-  grade?: string
-  notes?: string
-}
+import { UICard } from '../types'
+import { getCardStatusColor, getCardStatusText, getCardProgress } from '../utils/statusHelpers'
+import { formatDate } from '../utils/dateHelpers'
 
 interface OrderDetailsProps {
   orderNumber: string
   submissionDate: string
   estimatedCompletion: string
-  items: Card[]
+  items: UICard[]
   onClose: () => void
 }
 
 function OrderDetails({ orderNumber, submissionDate, estimatedCompletion, items, onClose }: OrderDetailsProps) {
-  const getCardStatusColor = (status: Card['status']) => {
-    const colors = {
-      pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-      grading: 'bg-blue-100 text-blue-800 border-blue-300',
-      completed: 'bg-green-100 text-green-800 border-green-300',
-    }
-    return colors[status]
-  }
-
-  const getCardStatusText = (status: Card['status']) => {
-    const texts = {
-      pending: 'Ausstehend',
-      grading: 'Wird bewertet',
-      completed: 'Abgeschlossen',
-    }
-    return texts[status]
-  }
-
-  const getCardProgress = (status: Card['status']) => {
-    const progress = {
-      pending: 20,
-      grading: 60,
-      completed: 100,
-    }
-    return progress[status]
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
@@ -63,6 +32,7 @@ function OrderDetails({ orderNumber, submissionDate, estimatedCompletion, items,
             <button
               onClick={onClose}
               className="text-white hover:text-gray-200 transition-colors duration-200 p-2 hover:bg-white/20 rounded-lg"
+              aria-label="Modal schließen"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -78,21 +48,13 @@ function OrderDetails({ orderNumber, submissionDate, estimatedCompletion, items,
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="text-sm text-gray-600 mb-1">Eingereicht am</div>
               <div className="text-lg font-semibold text-gray-800">
-                {new Date(submissionDate).toLocaleDateString('de-DE', { 
-                  day: '2-digit', 
-                  month: 'long', 
-                  year: 'numeric' 
-                })}
+                {formatDate(submissionDate, 'long')}
               </div>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="text-sm text-gray-600 mb-1">Geschätzte Fertigstellung</div>
               <div className="text-lg font-semibold text-gray-800">
-                {new Date(estimatedCompletion).toLocaleDateString('de-DE', { 
-                  day: '2-digit', 
-                  month: 'long', 
-                  year: 'numeric' 
-                })}
+                {formatDate(estimatedCompletion, 'long')}
               </div>
             </div>
           </div>

@@ -1,4 +1,6 @@
 import { supabase } from '../lib/supabase'
+import { GradingOrderWithService } from '../types'
+import { logError } from '../utils/errorHandler'
 
 // ============================================
 // AUTHENTIFIZIERUNG
@@ -14,7 +16,7 @@ export const authService = {
     })
     
     if (error) {
-      console.error('❌ Supabase Auth Fehler:', error)
+      logError('authService.signIn', error)
       throw error
     }
     
@@ -35,14 +37,20 @@ export const authService = {
       }
     })
     
-    if (error) throw error
+    if (error) {
+      logError('authService.signUp', error)
+      throw error
+    }
     return data
   },
 
   // Logout
   async signOut() {
     const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    if (error) {
+      logError('authService.signOut', error)
+      throw error
+    }
   },
 
   // Aktueller Benutzer
@@ -103,7 +111,7 @@ export const customerService = {
 
 export const orderService = {
   // Alle Aufträge eines Kunden
-  async getOrdersByCustomer(customerId: string) {
+  async getOrdersByCustomer(customerId: string): Promise<GradingOrderWithService[]> {
     const { data, error } = await supabase
       .from('grading_orders')
       .select(`
@@ -116,12 +124,15 @@ export const orderService = {
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false })
     
-    if (error) throw error
-    return data
+    if (error) {
+      logError('orderService.getOrdersByCustomer', error)
+      throw error
+    }
+    return (data || []) as GradingOrderWithService[]
   },
 
   // Einzelnen Auftrag abrufen
-  async getOrderById(orderId: string) {
+  async getOrderById(orderId: string): Promise<GradingOrderWithService | null> {
     const { data, error } = await supabase
       .from('grading_orders')
       .select(`
@@ -134,8 +145,12 @@ export const orderService = {
       .eq('id', orderId)
       .single()
     
-    if (error) throw error
-    return data
+    if (error) {
+      if (error.code === 'PGRST116') return null // Not found
+      logError('orderService.getOrderById', error)
+      throw error
+    }
+    return data as GradingOrderWithService
   },
 
   // Karten eines Auftrags abrufen
@@ -143,7 +158,10 @@ export const orderService = {
     const { data, error } = await supabase
       .rpc('get_order_cards_with_status', { order_uuid: orderId })
     
-    if (error) throw error
+    if (error) {
+      logError('orderService.getOrderCards', error)
+      throw error
+    }
     return data || []
   }
 }
@@ -178,8 +196,11 @@ export const cardService = {
       .eq('order_id', orderId)
       .order('created_at', { ascending: true })
     
-    if (error) throw error
-    return data
+    if (error) {
+      logError('cardService.getCardsByOrder', error)
+      throw error
+    }
+    return data || []
   }
 }
 
@@ -211,7 +232,11 @@ export const gradingService = {
       .eq('card_id', cardId)
       .single()
     
-    if (error && error.code !== 'PGRST116') throw error // PGRST116 = no rows returned
+    if (error) {
+      if (error.code === 'PGRST116') return null // Not found
+      logError('gradingService.getResultsByCard', error)
+      throw error
+    }
     return data
   },
 
@@ -222,8 +247,11 @@ export const gradingService = {
       .select('*')
       .eq('order_id', orderId)
     
-    if (error) throw error
-    return data
+    if (error) {
+      logError('gradingService.getResultsByOrder', error)
+      throw error
+    }
+    return data || []
   }
 }
 

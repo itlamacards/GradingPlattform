@@ -1,39 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { orderService } from '../services/api'
 import OrderDetails from './OrderDetails'
-
-interface Card {
-  id: string
-  name: string
-  type: string
-  status: 'pending' | 'grading' | 'completed'
-  grade?: string
-  notes?: string
-}
-
-interface Order {
-  id: string
-  orderNumber: string
-  status: 'pending' | 'in_progress' | 'completed' | 'shipped' | 'delivered'
-  submissionDate: string
-  estimatedCompletion: string
-  items: number
-  cards: Card[]
-}
+import { UIOrder, GradingOrderWithService } from '../types'
+import { 
+  getOrderStatusColor, 
+  getOrderStatusText, 
+  getOrderProgressPercentage,
+  mapDbStatusToOrderStatus 
+} from '../utils/statusHelpers'
+import { getUserFriendlyErrorMessage, logError } from '../utils/errorHandler'
+import { formatDate, calculateEstimatedCompletion } from '../utils/dateHelpers'
 
 function Dashboard() {
   const { signOut, customerId } = useAuth()
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-  const [orders, setOrders] = useState<Order[]>([])
+  const [selectedOrder, setSelectedOrder] = useState<UIOrder | null>(null)
+  const [orders, setOrders] = useState<UIOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadOrders()
-  }, [customerId])
-
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     if (!customerId) {
       setLoading(false)
       return
@@ -41,30 +27,43 @@ function Dashboard() {
 
     try {
       setLoading(true)
-      const data = await orderService.getOrdersByCustomer(customerId)
+      setError(null)
+      const data = await orderService.getOrdersByCustomer(customerId) as GradingOrderWithService[]
       
       // Transformiere Daten in das erwartete Format
-      const transformedOrders: Order[] = data.map((order: any) => ({
-        id: order.id,
-        orderNumber: order.order_number,
-        status: order.status as Order['status'],
-        submissionDate: order.submission_date,
-        estimatedCompletion: order.submission_date, // TODO: Berechnen basierend auf Service
-        items: 0, // TODO: Anzahl Karten laden
-        cards: [] // Wird später geladen
-      }))
+      const transformedOrders: UIOrder[] = data.map((order) => {
+        const submissionDate = new Date(order.submission_date)
+        const estimatedCompletion = calculateEstimatedCompletion(
+          submissionDate,
+          30 // Standard: 30 Tage (könnte aus Service kommen)
+        )
+
+        return {
+          id: order.id,
+          orderNumber: order.order_number,
+          status: mapDbStatusToOrderStatus(order.status),
+          submissionDate: order.submission_date,
+          estimatedCompletion: estimatedCompletion.toISOString(),
+          items: 0, // Wird später geladen wenn Karten-API verfügbar ist
+          cards: [] // Wird später geladen
+        }
+      })
       
       setOrders(transformedOrders)
-    } catch (err: any) {
-      setError(err.message || 'Fehler beim Laden der Aufträge')
-      console.error('Error loading orders:', err)
+    } catch (err) {
+      logError('Dashboard.loadOrders', err)
+      setError(getUserFriendlyErrorMessage(err))
     } finally {
       setLoading(false)
     }
-  }
+  }, [customerId])
+
+  useEffect(() => {
+    loadOrders()
+  }, [loadOrders])
 
   // Fallback: Wenn keine Daten geladen werden konnten, zeige Demo-Daten
-  const displayOrders: Order[] = orders.length > 0 ? orders : [
+  const displayOrders: UIOrder[] = orders.length > 0 ? orders : [
     {
       id: '1',
       orderNumber: 'ORD-2024-001',
@@ -212,45 +211,13 @@ function Dashboard() {
     },
   ]
 
-  const getStatusColor = (status: Order['status']) => {
-    const colors = {
-      pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-      in_progress: 'bg-blue-100 text-blue-800 border-blue-300',
-      completed: 'bg-green-100 text-green-800 border-green-300',
-      shipped: 'bg-purple-100 text-purple-800 border-purple-300',
-      delivered: 'bg-gray-100 text-gray-800 border-gray-300',
-    }
-    return colors[status]
-  }
-
-  const getStatusText = (status: Order['status']) => {
-    const texts = {
-      pending: 'Ausstehend',
-      in_progress: 'In Bearbeitung',
-      completed: 'Abgeschlossen',
-      shipped: 'Versandt',
-      delivered: 'Geliefert',
-    }
-    return texts[status]
-  }
-
-  const getProgressPercentage = (order: Order): number => {
-    const statusProgress = {
-      pending: 10,
-      in_progress: 60,
-      completed: 100,
-      shipped: 100,
-      delivered: 100,
-    }
-    return statusProgress[order.status]
-  }
-
-  const stats = {
+  // Memoized Stats für bessere Performance
+  const stats = useMemo(() => ({
     total: orders.length,
     inProgress: orders.filter(o => o.status === 'in_progress').length,
     completed: orders.filter(o => o.status === 'completed').length,
     pending: orders.filter(o => o.status === 'pending').length,
-  }
+  }), [orders])
 
   return (
     <div className="min-h-screen p-4 md:p-8 animate-fadeIn">
@@ -342,7 +309,7 @@ function Dashboard() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {displayOrders.map((order, index) => {
-                const progress = getProgressPercentage(order)
+                const progress = getOrderProgressPercentage(order.status)
                 return (
                   <tr 
                     key={order.id} 
@@ -353,8 +320,8 @@ function Dashboard() {
                       <div className="text-sm font-medium text-gray-900">{order.orderNumber}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getStatusColor(order.status)}`}>
-                        {getStatusText(order.status)}
+                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getOrderStatusColor(order.status)}`}>
+                        {getOrderStatusText(order.status)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -380,15 +347,16 @@ function Dashboard() {
                       {order.items} Items
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(order.submissionDate).toLocaleDateString('de-DE')}
+                      {formatDate(order.submissionDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(order.estimatedCompletion).toLocaleDateString('de-DE')}
+                      {formatDate(order.estimatedCompletion)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button 
                         onClick={() => setSelectedOrder(order)}
                         className="text-blue-600 hover:text-blue-900 transition-colors duration-200 hover:underline font-medium"
+                        aria-label={`Details für Auftrag ${order.orderNumber} anzeigen`}
                       >
                         Details
                       </button>

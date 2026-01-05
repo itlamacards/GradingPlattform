@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
 import { User } from '@supabase/supabase-js'
 import { authService } from '../services/api'
 import { supabase } from '../lib/supabase'
+import { logError } from '../utils/errorHandler'
 
 interface AuthContextType {
   user: User | null
@@ -19,6 +20,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [customerId, setCustomerId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+
+  const loadCustomerData = useCallback(async (_userId: string, email: string) => {
+    try {
+      // Prüfe ob Admin (hardcoded für Demo)
+      if (email === 'admin@admin.de') {
+        setIsAdmin(true)
+        return
+      }
+
+      // Lade Kunden-Daten
+      const { data: customer, error } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('email', email)
+        .single()
+
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 = no rows returned (ist OK)
+        throw error
+      }
+
+      if (customer) {
+        setCustomerId(customer.id)
+      }
+    } catch (error) {
+      logError('AuthContext.loadCustomerData', error)
+    }
+  }, [])
+
+  const checkUser = useCallback(async () => {
+    try {
+      const session = await authService.getSession()
+      if (session?.user) {
+        setUser(session.user)
+        await loadCustomerData(session.user.id, session.user.email || '')
+      }
+    } catch (error) {
+      logError('AuthContext.checkUser', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [loadCustomerData])
 
   useEffect(() => {
     // Prüfe aktuelle Session
@@ -41,44 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
 
     return () => subscription.unsubscribe()
-  }, [])
-
-  const checkUser = async () => {
-    try {
-      const session = await authService.getSession()
-      if (session?.user) {
-        setUser(session.user)
-        await loadCustomerData(session.user.id, session.user.email || '')
-      }
-    } catch (error) {
-      console.error('Error checking user:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadCustomerData = async (_userId: string, email: string) => {
-    try {
-      // Prüfe ob Admin (hardcoded für Demo)
-      if (email === 'admin@admin.de') {
-        setIsAdmin(true)
-        return
-      }
-
-      // Lade Kunden-Daten
-      const { data: customer } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('email', email)
-        .single()
-
-      if (customer) {
-        setCustomerId(customer.id)
-      }
-    } catch (error) {
-      console.error('Error loading customer data:', error)
-    }
-  }
+  }, [checkUser, loadCustomerData])
 
   const signIn = async (email: string, password: string) => {
     setLoading(true)
@@ -96,16 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Normaler Login mit Supabase Auth
       console.log('🔐 Versuche Supabase Auth Login...')
-      const result = await authService.signIn(email, password)
-      console.log('✅ Supabase Auth Login erfolgreich:', result)
+      await authService.signIn(email, password)
+      console.log('✅ Supabase Auth Login erfolgreich')
       // User wird durch onAuthStateChange gesetzt
-    } catch (error: any) {
-      console.error('❌ signIn Fehler:', error)
-      console.error('Fehler-Details:', {
-        message: error?.message,
-        status: error?.status,
-        error: error?.error
-      })
+    } catch (error) {
+      logError('AuthContext.signIn', error)
       setLoading(false)
       throw error
     }
@@ -122,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await authService.signOut()
       }
     } catch (error) {
-      console.error('Error signing out:', error)
+      logError('AuthContext.signOut', error)
       throw error
     } finally {
       setLoading(false)

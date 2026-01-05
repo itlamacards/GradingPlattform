@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { getUserFriendlyErrorMessage, logError } from '../utils/errorHandler'
 
 function Login() {
   const { signIn } = useAuth()
@@ -19,11 +20,9 @@ function Login() {
       await signIn(email, password)
       console.log('✅ Login erfolgreich')
       // Navigation wird durch AuthContext gehandhabt
-    } catch (err: any) {
-      console.error('❌ Login-Fehler:', err)
-      const errorMessage = err?.message || err?.error?.message || 'Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.'
-      setError(errorMessage)
-      console.log('Fehlermeldung:', errorMessage)
+    } catch (err) {
+      logError('Login.handleSubmit', err)
+      setError(getUserFriendlyErrorMessage(err))
     } finally {
       setLoading(false)
     }
