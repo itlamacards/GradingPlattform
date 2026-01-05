@@ -1,19 +1,24 @@
 import { createClient } from '@supabase/supabase-js'
 
 // Supabase Credentials aus Umgebungsvariablen
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
-// Validierung der Umgebungsvariablen
+// Validierung der Umgebungsvariablen (nur Warnung, kein Throw)
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Fehlende Supabase-Umgebungsvariablen. Bitte prüfe .env.local Datei.\n' +
-    'Benötigt: VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY'
-  )
+  console.error('❌ Fehlende Supabase-Umgebungsvariablen!')
+  console.error('Benötigt: VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY')
+  console.error('Aktuelle Werte:', {
+    url: supabaseUrl ? '✅ Gesetzt' : '❌ Fehlt',
+    key: supabaseAnonKey ? '✅ Gesetzt' : '❌ Fehlt'
+  })
 }
 
-// Supabase Client erstellen
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Supabase Client erstellen (auch wenn Keys fehlen, damit App nicht abstürzt)
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key'
+)
 
 // TypeScript Types für die Datenbank
 export type Database = {
