@@ -4,17 +4,19 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
-// Validierung der Umgebungsvariablen (nur Warnung, kein Throw)
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Fehlende Supabase-Umgebungsvariablen!')
-  console.error('Benötigt: VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY')
-  console.error('Aktuelle Werte:', {
+// Validierung der Umgebungsvariablen (nur Warnung in Development)
+if (import.meta.env.DEV && (!supabaseUrl || !supabaseAnonKey)) {
+  console.warn('⚠️ Fehlende Supabase-Umgebungsvariablen!')
+  console.warn('Benötigt: VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY')
+  console.warn('Aktuelle Werte:', {
     url: supabaseUrl ? '✅ Gesetzt' : '❌ Fehlt',
     key: supabaseAnonKey ? '✅ Gesetzt' : '❌ Fehlt'
   })
 }
 
-// Supabase Client erstellen (auch wenn Keys fehlen, damit App nicht abstürzt)
+// Supabase Client erstellen
+// Falls Keys fehlen, wird ein Client mit Platzhaltern erstellt
+// Die App läuft weiter, aber API-Calls werden fehlschlagen
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-key'
