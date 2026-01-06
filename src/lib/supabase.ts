@@ -6,11 +6,16 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 // Validierung der Umgebungsvariablen (nur Warnung in Development)
 if (import.meta.env.DEV && (!supabaseUrl || !supabaseAnonKey)) {
-  console.warn('⚠️ Fehlende Supabase-Umgebungsvariablen!')
-  console.warn('Benötigt: VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY')
-  console.warn('Aktuelle Werte:', {
-    url: supabaseUrl ? '✅ Gesetzt' : '❌ Fehlt',
-    key: supabaseAnonKey ? '✅ Gesetzt' : '❌ Fehlt'
+  // Dynamischer Import um zirkuläre Abhängigkeiten zu vermeiden
+  import('../utils/logger').then(({ logger }) => {
+    logger.warn('Fehlende Supabase-Umgebungsvariablen!', {
+      context: 'Supabase',
+      data: {
+        url: supabaseUrl ? '✅ Gesetzt' : '❌ Fehlt',
+        key: supabaseAnonKey ? '✅ Gesetzt' : '❌ Fehlt'
+      },
+      group: '⚠️ Configuration Warning'
+    })
   })
 }
 

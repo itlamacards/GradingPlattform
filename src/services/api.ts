@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { GradingOrderWithService } from '../types'
 import { logError } from '../utils/errorHandler'
+import { logApiCall, logApiSuccess, logApiError } from '../utils/logger'
 
 // ============================================
 // AUTHENTIFIZIERUNG
@@ -9,23 +10,27 @@ import { logError } from '../utils/errorHandler'
 export const authService = {
   // Login mit E-Mail und Passwort
   async signIn(email: string, password: string) {
-    console.log('🔐 authService.signIn aufgerufen:', { email })
+    logApiCall('POST', 'auth/signIn', { email })
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
     
     if (error) {
+      logApiError('POST', 'auth/signIn', error)
       logError('authService.signIn', error)
       throw error
     }
     
-    console.log('✅ Supabase Auth erfolgreich:', { user: data?.user?.email })
+    logApiSuccess('POST', 'auth/signIn', { userId: data?.user?.id, email: data?.user?.email })
     return data
   },
 
   // Registrierung
   async signUp(email: string, password: string, firstName: string, lastName: string) {
+    logApiCall('POST', 'auth/signUp', { email, firstName, lastName })
+    
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -38,19 +43,27 @@ export const authService = {
     })
     
     if (error) {
+      logApiError('POST', 'auth/signUp', error)
       logError('authService.signUp', error)
       throw error
     }
+    
+    logApiSuccess('POST', 'auth/signUp', { userId: data?.user?.id, email: data?.user?.email })
     return data
   },
 
   // Logout
   async signOut() {
+    logApiCall('POST', 'auth/signOut')
+    
     const { error } = await supabase.auth.signOut()
     if (error) {
+      logApiError('POST', 'auth/signOut', error)
       logError('authService.signOut', error)
       throw error
     }
+    
+    logApiSuccess('POST', 'auth/signOut')
   },
 
   // Aktueller Benutzer
@@ -112,6 +125,8 @@ export const customerService = {
 export const orderService = {
   // Alle Aufträge eines Kunden
   async getOrdersByCustomer(customerId: string): Promise<GradingOrderWithService[]> {
+    logApiCall('GET', `orders?customerId=${customerId}`)
+    
     const { data, error } = await supabase
       .from('grading_orders')
       .select(`
@@ -125,9 +140,12 @@ export const orderService = {
       .order('created_at', { ascending: false })
     
     if (error) {
+      logApiError('GET', 'orders', error)
       logError('orderService.getOrdersByCustomer', error)
       throw error
     }
+    
+    logApiSuccess('GET', 'orders', { count: data?.length || 0 })
     return (data || []) as GradingOrderWithService[]
   },
 

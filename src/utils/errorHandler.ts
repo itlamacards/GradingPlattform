@@ -71,13 +71,22 @@ export const getUserFriendlyErrorMessage = (error: unknown): string => {
 // ERROR LOGGING
 // ============================================
 
+import { logger } from './logger'
+
 export const logError = (context: string, error: unknown): void => {
   const parsed = parseError(error)
-  console.error(`[${context}]`, {
-    message: parsed.message,
-    code: parsed.code,
-    details: parsed.details,
-    error,
+  
+  logger.error(`Fehler in ${context}`, {
+    context,
+    data: {
+      message: parsed.message,
+      code: parsed.code,
+      details: parsed.details,
+      originalError: error,
+      stack: error instanceof Error ? error.stack : undefined
+    },
+    group: `❌ Error: ${context}`,
+    collapsed: false
   })
 }
 

@@ -3,6 +3,7 @@ import { User } from '@supabase/supabase-js'
 import { authService } from '../services/api'
 import { supabase } from '../lib/supabase'
 import { logError } from '../utils/errorHandler'
+import { logAuth } from '../utils/logger'
 
 interface AuthContextType {
   user: User | null
@@ -83,13 +84,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     setLoading(true)
-    console.log('🔐 signIn aufgerufen:', { email })
+    logAuth('Login-Versuch gestartet', { email })
     
     try {
-      // Login mit Supabase Auth
-      console.log('🔐 Versuche Supabase Auth Login...')
       await authService.signIn(email, password)
-      console.log('✅ Supabase Auth Login erfolgreich')
+      logAuth('Login erfolgreich', { email })
       // User wird durch onAuthStateChange gesetzt
     } catch (error) {
       logError('AuthContext.signIn', error)
@@ -100,14 +99,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
     setLoading(true)
-    console.log('📝 signUp aufgerufen:', { email, firstName, lastName })
+    logAuth('Registrierung gestartet', { email, firstName, lastName })
     
     try {
-      // Registrierung mit Supabase Auth
-      console.log('📝 Versuche Supabase Auth Registrierung...')
       const data = await authService.signUp(email, password, firstName, lastName)
       
-      console.log('✅ Supabase Auth Registrierung erfolgreich:', { user: data?.user?.email })
+      logAuth('Registrierung erfolgreich', { 
+        userId: data?.user?.id, 
+        email: data?.user?.email 
+      })
       
       // User wird durch onAuthStateChange gesetzt
       // Der Trigger in der Datenbank erstellt automatisch den Customer-Eintrag

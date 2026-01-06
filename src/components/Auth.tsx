@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getUserFriendlyErrorMessage, logError } from '../utils/errorHandler'
+import { logComponent } from '../utils/logger'
 
 function Auth() {
   const { signIn, signUp } = useAuth()
@@ -27,11 +28,11 @@ function Auth() {
     setLoginError('')
     setLoginLoading(true)
     
-    console.log('🔐 Login-Versuch:', { email: loginEmail })
+    logComponent('Auth', 'Login-Versuch', { email: loginEmail })
     
     try {
       await signIn(loginEmail, loginPassword)
-      console.log('✅ Login erfolgreich')
+      logComponent('Auth', 'Login erfolgreich')
     } catch (err) {
       logError('Auth.handleLogin', err)
       setLoginError(getUserFriendlyErrorMessage(err))
@@ -64,11 +65,15 @@ function Auth() {
       return
     }
     
-    console.log('📝 Registrierungs-Versuch:', { email: registerEmail, firstName, lastName })
+    logComponent('Auth', 'Registrierungs-Versuch', { 
+      email: registerEmail, 
+      firstName, 
+      lastName 
+    })
     
     try {
       await signUp(registerEmail, registerPassword, firstName.trim(), lastName.trim())
-      console.log('✅ Registrierung erfolgreich')
+      logComponent('Auth', 'Registrierung erfolgreich')
       setRegisterSuccess(true)
     } catch (err) {
       logError('Auth.handleRegister', err)
