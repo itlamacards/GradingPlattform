@@ -9,6 +9,7 @@ interface AuthContextType {
   customerId: string | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
+  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<void>
   signOut: () => Promise<void>
   isAdmin: boolean
 }
@@ -23,12 +24,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadCustomerData = useCallback(async (_userId: string, email: string) => {
     try {
-      // Prüfe ob Admin (hardcoded für Demo)
-      if (email === 'admin@admin.de') {
-        setIsAdmin(true)
-        return
-      }
-
       // Lade Kunden-Daten
       const { data: customer, error } = await supabase
         .from('customers')
@@ -91,16 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('🔐 signIn aufgerufen:', { email })
     
     try {
-      // Admin-Login (hardcoded für Demo)
-      if (email === 'admin@admin.de' && password === 'admin') {
-        console.log('✅ Admin-Login erkannt')
-        setIsAdmin(true)
-        setUser({ id: 'admin', email: 'admin@admin.de' } as User)
-        setLoading(false)
-        return
-      }
-
-      // Normaler Login mit Supabase Auth
+      // Login mit Supabase Auth
       console.log('🔐 Versuche Supabase Auth Login...')
       await authService.signIn(email, password)
       console.log('✅ Supabase Auth Login erfolgreich')
@@ -112,16 +98,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
+    setLoading(true)
+    console.log('📝 signUp aufgerufen:', { email, firstName, lastName })
+    
+    try {
+      // Registrierung mit Supabase Auth
+      console.log('📝 Versuche Supabase Auth Registrierung...')
+      const data = await authService.signUp(email, password, firstName, lastName)
+      
+      console.log('✅ Supabase Auth Registrierung erfolgreich:', { user: data?.user?.email })
+      
+      // User wird durch onAuthStateChange gesetzt
+      // Der Trigger in der Datenbank erstellt automatisch den Customer-Eintrag
+    } catch (error) {
+      logError('AuthContext.signUp', error)
+      setLoading(false)
+      throw error
+    }
+  }
+
   const signOut = async () => {
     setLoading(true)
     try {
-      if (isAdmin) {
-        setIsAdmin(false)
-        setUser(null)
-        setCustomerId(null)
-      } else {
-        await authService.signOut()
-      }
+      await authService.signOut()
+      setUser(null)
+      setCustomerId(null)
+      setIsAdmin(false)
     } catch (error) {
       logError('AuthContext.signOut', error)
       throw error
@@ -131,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, customerId, loading, signIn, signOut, isAdmin }}>
+    <AuthContext.Provider value={{ user, customerId, loading, signIn, signUp, signOut, isAdmin }}>
       {children}
     </AuthContext.Provider>
   )

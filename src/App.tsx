@@ -1,5 +1,5 @@
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import Login from './components/Login'
+import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 import AdminResults from './components/AdminResults'
 
@@ -36,7 +36,7 @@ function AppContent() {
       {/* Content */}
       <div className="relative z-10">
         {!user ? (
-          <Login />
+          <Auth />
         ) : isAdmin ? (
           <AdminResults />
         ) : (
