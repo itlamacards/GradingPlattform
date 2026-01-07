@@ -35,6 +35,7 @@ export const authService = {
       email,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
         data: {
           first_name: firstName,
           last_name: lastName,
@@ -48,7 +49,11 @@ export const authService = {
       throw error
     }
     
-    logApiSuccess('POST', 'auth/signUp', { userId: data?.user?.id, email: data?.user?.email })
+    logApiSuccess('POST', 'auth/signUp', { 
+      userId: data?.user?.id, 
+      email: data?.user?.email,
+      emailConfirmed: data?.user?.email_confirmed_at !== null
+    })
     return data
   },
 

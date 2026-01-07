@@ -1,11 +1,26 @@
+import { useEffect, useState } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 import AdminResults from './components/AdminResults'
+import EmailConfirmation from './components/EmailConfirmation'
 import { logger } from './utils/logger'
 
 function AppContent() {
   const { user, isAdmin, loading } = useAuth()
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false)
+
+  // Prüfe URL-Parameter für E-Mail-Bestätigung
+  useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.substring(1))
+    const type = hashParams.get('type')
+    
+    if (type === 'signup' || type === 'recovery') {
+      setShowEmailConfirmation(true)
+      // Entferne Hash aus URL nach dem Lesen
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }, [])
 
   // Warnung in Konsole (nicht blockierend)
   if (typeof window !== 'undefined' && (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY)) {
@@ -41,7 +56,9 @@ function AppContent() {
       
       {/* Content */}
       <div className="relative z-10">
-        {!user ? (
+        {showEmailConfirmation ? (
+          <EmailConfirmation />
+        ) : !user ? (
           <Auth />
         ) : isAdmin ? (
           <AdminResults />

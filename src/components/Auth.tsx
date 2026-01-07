@@ -22,6 +22,8 @@ function Auth() {
   const [registerError, setRegisterError] = useState('')
   const [registerLoading, setRegisterLoading] = useState(false)
   const [registerSuccess, setRegisterSuccess] = useState(false)
+  const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false)
+  const [registeredEmail, setRegisteredEmail] = useState('')
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -72,8 +74,13 @@ function Auth() {
     })
     
     try {
-      await signUp(registerEmail, registerPassword, firstName.trim(), lastName.trim())
-      logComponent('Auth', 'Registrierung erfolgreich')
+      const result = await signUp(registerEmail, registerPassword, firstName.trim(), lastName.trim())
+      logComponent('Auth', 'Registrierung erfolgreich', { result })
+      
+      // Prüfe, ob E-Mail-Bestätigung nötig ist
+      const isConfirmed = result?.user?.email_confirmed_at !== null
+      setNeedsEmailConfirmation(!isConfirmed)
+      setRegisteredEmail(registerEmail)
       setRegisterSuccess(true)
     } catch (err) {
       logError('Auth.handleRegister', err)
@@ -84,27 +91,74 @@ function Auth() {
   }
 
   if (registerSuccess) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 animate-fadeIn">
-        <div className="w-full max-w-md">
-          <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-white/30 text-center">
-            <div className="mb-6">
-              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+    if (needsEmailConfirmation) {
+      // E-Mail-Bestätigung erforderlich
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4 animate-fadeIn">
+          <div className="w-full max-w-md">
+            <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-white/30 text-center">
+              <div className="mb-6">
+                <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
               </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                E-Mail-Bestätigung erforderlich
+              </h2>
+              <p className="text-gray-600 mb-4">
+                Wir haben eine Bestätigungs-E-Mail an <strong>{registeredEmail}</strong> gesendet.
+              </p>
+              <p className="text-gray-600 mb-6">
+                Bitte öffnen Sie Ihr E-Mail-Postfach und klicken Sie auf den Bestätigungslink, um Ihr Konto zu aktivieren.
+              </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-left">
+                <p className="text-sm text-blue-800 font-semibold mb-2">📧 Keine E-Mail erhalten?</p>
+                <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
+                  <li>Prüfen Sie Ihren Spam-Ordner</li>
+                  <li>Warten Sie einige Minuten</li>
+                  <li>Stellen Sie sicher, dass die E-Mail-Adresse korrekt ist</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => {
+                  setRegisterSuccess(false)
+                  setNeedsEmailConfirmation(false)
+                  setRegisteredEmail('')
+                }}
+                className="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
+              >
+                Zurück zur Anmeldung
+              </button>
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">
-              Registrierung erfolgreich!
-            </h2>
-            <p className="text-gray-600 mb-6">
-              Ihr Konto wurde erstellt. Sie werden automatisch angemeldet...
-            </p>
           </div>
         </div>
-      </div>
-    )
+      )
+    } else {
+      // Automatisch bestätigt - wird eingeloggt
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4 animate-fadeIn">
+          <div className="w-full max-w-md">
+            <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-white/30 text-center">
+              <div className="mb-6">
+                <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                Registrierung erfolgreich!
+              </h2>
+              <p className="text-gray-600 mb-6">
+                Ihr Konto wurde erstellt. Sie werden automatisch angemeldet...
+              </p>
+            </div>
+          </div>
+        </div>
+      )
+    }
   }
 
   return (

@@ -10,7 +10,7 @@ interface AuthContextType {
   customerId: string | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<void>
+  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ user: User | null; session: any } | null>
   signOut: () => Promise<void>
   isAdmin: boolean
 }
@@ -106,11 +106,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       logAuth('Registrierung erfolgreich', { 
         userId: data?.user?.id, 
-        email: data?.user?.email 
+        email: data?.user?.email,
+        emailConfirmed: data?.user?.email_confirmed_at !== null
       })
       
-      // User wird durch onAuthStateChange gesetzt
+      // Wenn User bereits bestätigt ist, wird er durch onAuthStateChange automatisch eingeloggt
+      // Wenn nicht, muss er die E-Mail bestätigen
       // Der Trigger in der Datenbank erstellt automatisch den Customer-Eintrag
+      
+      return data
     } catch (error) {
       logError('AuthContext.signUp', error)
       setLoading(false)
