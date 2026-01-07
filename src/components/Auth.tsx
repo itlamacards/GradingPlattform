@@ -152,10 +152,11 @@ function Auth() {
                     setRegisterSuccess(false)
                     setNeedsEmailConfirmation(false)
                     setRegisteredEmail('')
+                    setIsRegister(false)
                   }}
-                  className="w-full text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200"
                 >
-                  Zurück zur Anmeldung
+                  ← Zurück zur Anmeldung
                 </button>
               </div>
             </div>
