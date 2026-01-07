@@ -10,33 +10,12 @@ import { logApiCall, logApiSuccess, logApiError } from '../utils/logger'
 import { secureSignIn } from './secureLogin'
 
 export const authService = {
-  // Login mit E-Mail und Passwort (mit vollständigem Security + Fallback)
+  // Login mit E-Mail und Passwort (einfache Version ohne SQL-Functions)
   async signIn(email: string, password: string) {
     logApiCall('POST', 'auth/signIn', { email: email.substring(0, 3) + '***' })
     
-    try {
-      // Versuche secureSignIn (wenn SQL-Functions existieren)
-      const result = await secureSignIn(email, password)
-      
-      if (!result.success) {
-        // WICHTIG: Fehler immer weitergeben!
-        const error = new Error(result.error || 'E-Mail oder Passwort ist falsch.')
-        throw error
-      }
-      
-      if (result.requiresPasswordReset) {
-        return { ...result.data, requiresPasswordReset: true }
-      }
-      
-      return result.data
-    } catch (error: any) {
-      // Fallback: Wenn secureSignIn fehlschlägt (z.B. Functions nicht vorhanden),
-      // verwende einfachere Login-Logik
-      logApiError('POST', 'auth/signIn.secureSignIn', error)
-      
-      // Fallback zu einfachem Login
-      return await authService.fallbackSignIn(email, password)
-    }
+    // Verwende direkt Fallback-Login (bis SQL-Functions ausgeführt wurden)
+    return await authService.fallbackSignIn(email, password)
   },
   
   // Fallback Login (wenn Security-Functions nicht verfügbar sind)
