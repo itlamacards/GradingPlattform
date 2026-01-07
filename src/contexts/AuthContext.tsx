@@ -119,10 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return result
     } catch (error) {
       logError('AuthContext.signIn', error)
-      // Set error in context - this will be displayed in App.tsx
-      // WICHTIG: Error wird gesetzt, BEVOR wir den Error werfen
-      const errorMessage = error instanceof Error ? error.message : 'Ein Fehler ist aufgetreten'
-      setError(errorMessage)
+      // KEIN setError hier - die Auth-Komponente zeigt die Fehlermeldung selbst an
       throw error
     }
   }
@@ -156,9 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return data
     } catch (error) {
       logError('AuthContext.signUp', error)
-      // Set error in context - this will be displayed in App.tsx
-      const errorMessage = error instanceof Error ? error.message : 'Ein Fehler ist aufgetreten'
-      setError(errorMessage)
+      // KEIN setError hier - die Auth-Komponente zeigt die Fehlermeldung selbst an
       throw error
     }
   }

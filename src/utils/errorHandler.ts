@@ -79,8 +79,9 @@ export const getUserFriendlyErrorMessage = (error: unknown): string => {
   // Registrierungs-Fehler
   if (message.includes('ein account mit dieser e-mail existiert bereits') ||
       message.includes('user already registered') ||
-      message.includes('email already exists')) {
-    return 'Ein Account mit dieser E-Mail existiert bereits. Bitte loggen Sie sich ein.'
+      message.includes('email already exists') ||
+      message.includes('email already registered')) {
+    return 'Diese E-Mail-Adresse ist bereits mit einem Account verknüpft. Bitte loggen Sie sich ein oder verwenden Sie die Funktion "Passwort vergessen".'
   }
   
   if (message.includes('bitte warten sie, bevor sie eine neue e-mail anfordern') ||
@@ -105,7 +106,7 @@ export const getUserFriendlyErrorMessage = (error: unknown): string => {
   // Bekannte Fehlercodes
   const errorMessages: Record<string, string> = {
     'PGRST116': 'Keine Daten gefunden',
-    '23505': 'Ein Account mit dieser E-Mail existiert bereits. Bitte loggen Sie sich ein.',
+    '23505': 'Diese E-Mail-Adresse ist bereits mit einem Account verknüpft. Bitte loggen Sie sich ein oder verwenden Sie die Funktion "Passwort vergessen".',
     '23503': 'Referenzfehler - Verwandte Daten fehlen',
     '42501': 'Zugriff verweigert - Sie haben keine Berechtigung',
     'invalid_credentials': 'E-Mail oder Passwort ist falsch. Bitte versuchen Sie es erneut.',

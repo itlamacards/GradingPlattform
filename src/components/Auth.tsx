@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getUserFriendlyErrorMessage, logError } from '../utils/errorHandler'
 import { logComponent } from '../utils/logger'
@@ -13,37 +13,6 @@ function Auth() {
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
-  const [showErrorPopup, setShowErrorPopup] = useState(false)
-  const [errorPopupMessage, setErrorPopupMessage] = useState('')
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Debug: Logge State-Änderungen
-  useEffect(() => {
-    console.log('🔍 showErrorPopup State geändert:', showErrorPopup)
-    console.log('🔍 errorPopupMessage:', errorPopupMessage)
-    if (showErrorPopup) {
-      console.log('✅✅✅ POPUP SOLLTE JETZT SICHTBAR SEIN! ✅✅✅')
-    } else {
-      console.log('❌ Popup ist NICHT sichtbar')
-    }
-  }, [showErrorPopup, errorPopupMessage])
-  
-  // Prüfe ob Komponente neu gemountet wird
-  useEffect(() => {
-    console.log('🔄 Auth Komponente gemountet/aktualisiert')
-    return () => {
-      console.log('🔄 Auth Komponente wird unmountet')
-    }
-  }, [])
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
-    }
-  }, [])
 
   // Register State
   const [registerEmail, setRegisterEmail] = useState('')
@@ -57,86 +26,34 @@ function Auth() {
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false)
   const [registeredEmail, setRegisteredEmail] = useState('')
 
-  // Fehler-Popup anzeigen
-  const showError = (message: string) => {
-    console.log('🔴 showError aufgerufen:', message)
-    
-    // Clear existing timeout
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
-    }
-    
-    // Set message and show popup - KEIN TIMEOUT HIER!
-    setErrorPopupMessage(message)
-    setShowErrorPopup(true)
-    console.log('🔴 showErrorPopup gesetzt auf true')
-  }
-
-  // Auto-close nach 5 Sekunden wenn Popup sichtbar ist
-  useEffect(() => {
-    if (showErrorPopup && errorPopupMessage) {
-      console.log('🔴 useEffect: Popup ist sichtbar, setze Auto-Close Timer für:', errorPopupMessage)
-      timeoutRef.current = setTimeout(() => {
-        console.log('🔴 Auto-close timeout ausgelöst')
-        setShowErrorPopup(false)
-        timeoutRef.current = null
-      }, 5000)
-      
-      return () => {
-        if (timeoutRef.current) {
-          console.log('🔴 Cleanup: Timeout gelöscht')
-          clearTimeout(timeoutRef.current)
-          timeoutRef.current = null
-        }
-      }
-    }
-  }, [showErrorPopup, errorPopupMessage])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     e.stopPropagation()
     console.log('🔵 handleLogin gestartet')
     
-    // Reset error states - ABER NICHT showErrorPopup hier zurücksetzen!
     setLoginError('')
-    // setShowErrorPopup(false) - ENTFERNT! Das könnte das Problem sein!
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
-    }
-    
     setLoginLoading(true)
     
     logComponent('Auth', 'Login-Versuch', { email: loginEmail })
     
     try {
-      console.log('🔵 signIn wird aufgerufen...')
       const result = await signIn(loginEmail, loginPassword)
-      console.log('🔵 signIn erfolgreich:', result)
       
       // Prüfe ob Passwort-Reset erforderlich ist
       if (result && 'requiresPasswordReset' in result && result.requiresPasswordReset) {
         const errorMsg = 'Bitte setzen Sie ein neues Passwort.'
         setLoginError(errorMsg)
         setLoginLoading(false)
-        // Show error after loading is set to false to avoid state conflicts
-        setTimeout(() => showError(errorMsg), 0)
         return
       }
       
       logComponent('Auth', 'Login erfolgreich')
     } catch (err) {
-      console.error('🔴 Login-Fehler gefangen:', err)
       logError('Auth.handleLogin', err)
       const errorMessage = getUserFriendlyErrorMessage(err)
-      console.log('🔴 Fehlermeldung:', errorMessage)
       setLoginError(errorMessage)
       setLoginLoading(false)
-      // Error wird jetzt im AuthContext gesetzt und in App.tsx angezeigt
-      // Kein showError mehr nötig!
-    } finally {
-      // Loading wird bereits im catch/success gesetzt
     }
   }
 
@@ -183,7 +100,7 @@ function Auth() {
       logError('Auth.handleRegister', err)
       const errorMessage = getUserFriendlyErrorMessage(err)
       setRegisterError(errorMessage)
-      showError(errorMessage)
+      // Kein showError mehr - Fehlermeldung wird über dem Button angezeigt
     } finally {
       setRegisterLoading(false)
     }
@@ -294,49 +211,7 @@ function Auth() {
   }
 
   return (
-    <>
-      {/* Fehler-Popup - außerhalb des main containers für bessere Sichtbarkeit */}
-      {showErrorPopup && (
-        <div 
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowErrorPopup(false)
-            }
-          }}
-        >
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full border-2 border-red-200 animate-slideDown">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </div>
-              </div>
-              <div className="ml-4 flex-1">
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Fehler</h3>
-                <p className="text-gray-700">{errorPopupMessage}</p>
-              </div>
-              <button
-                onClick={() => {
-                  console.log('🔴 Popup Close Button geklickt')
-                  setShowErrorPopup(false)
-                }}
-                className="ml-4 text-gray-400 hover:text-gray-600 transition-colors"
-                aria-label="Schließen"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="min-h-screen flex items-center justify-center p-4 animate-fadeIn">
+    <div className="min-h-screen flex items-center justify-center p-4 animate-fadeIn">
 
       <div className="w-full max-w-md">
         {/* Logo */}
@@ -586,7 +461,6 @@ function Auth() {
         </div>
       </div>
     </div>
-    </>
   )
 }
 
