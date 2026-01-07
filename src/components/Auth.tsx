@@ -30,8 +30,6 @@ function Auth() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    console.log('🔵 handleLogin gestartet')
-    
     setLoginError('')
     setLoginLoading(true)
     
