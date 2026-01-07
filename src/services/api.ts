@@ -32,11 +32,20 @@ export const authService = {
       .from('customers')
       .select('*')
       .eq('email', normalizedEmail)
-      .is('deleted_at', null)
       .maybeSingle()
     
-    if (customerError || !customerData) {
+    if (customerError) {
+      logApiError('POST', 'auth/signIn.customerLookup', customerError)
       throw new Error('Diese E-Mail-Adresse ist nicht registriert.')
+    }
+    
+    if (!customerData) {
+      throw new Error('Diese E-Mail-Adresse ist nicht registriert.')
+    }
+    
+    // Prüfe deleted_at manuell (falls Spalte existiert)
+    if (customerData.deleted_at) {
+      throw new Error('Dieser Account wurde gelöscht.')
     }
     
     const customer = customerData

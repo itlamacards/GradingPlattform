@@ -366,3 +366,4 @@ COMMENT ON COLUMN customers.locked_until IS 'Account gesperrt bis zu diesem Zeit
 COMMENT ON COLUMN customers.failed_login_count IS 'Anzahl fehlgeschlagener Login-Versuche';
 COMMENT ON COLUMN customers.session_version IS 'Wird bei Passwort-Reset erhöht, um alle Sessions zu invalidieren';
 
+

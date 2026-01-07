@@ -467,3 +467,4 @@ COMMENT ON TABLE login_attempts IS 'Audit-Log für alle Login-Versuche (Security
 COMMENT ON FUNCTION fake_password_verify() IS 'Simuliert Passwort-Verifikation für Timing-Schutz gegen User Enumeration';
 COMMENT ON FUNCTION check_user_exists(TEXT) IS 'Prüft User-Existenz mit Data Integrity Check';
 
+
