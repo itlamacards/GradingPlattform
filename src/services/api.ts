@@ -7,7 +7,7 @@ import { logApiCall, logApiSuccess, logApiError } from '../utils/logger'
 // AUTHENTIFIZIERUNG
 // ============================================
 
-import { secureSignIn } from './secureLogin'
+// import { secureSignIn } from './secureLogin' // Wird später verwendet, wenn SQL-Functions existieren
 
 export const authService = {
   // Login mit E-Mail und Passwort (einfache Version ohne SQL-Functions)
