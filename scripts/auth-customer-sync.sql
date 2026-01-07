@@ -84,7 +84,12 @@ BEGIN
             v_first_name,
             v_last_name,
             NEW.email,
-            COALESCE(NEW.phone, NULL)
+            COALESCE(NEW.phone, NULL),
+            CASE 
+                WHEN NEW.email_confirmed_at IS NOT NULL THEN 'ACTIVE'
+                ELSE 'UNVERIFIED'
+            END,  -- Status
+            NEW.email_confirmed_at  -- E-Mail-Verifikation
         )
         ON CONFLICT (id) DO UPDATE SET
             email = NEW.email,
@@ -92,6 +97,12 @@ BEGIN
             first_name = COALESCE(EXCLUDED.first_name, customers.first_name),
             last_name = COALESCE(EXCLUDED.last_name, customers.last_name),
             phone = COALESCE(EXCLUDED.phone, customers.phone),
+            status = CASE 
+                WHEN NEW.email_confirmed_at IS NOT NULL THEN 'ACTIVE'
+                WHEN customers.status = 'UNVERIFIED' OR customers.status IS NULL THEN 'UNVERIFIED'
+                ELSE customers.status
+            END,
+            email_verified_at = COALESCE(NEW.email_confirmed_at, customers.email_verified_at),
             updated_at = NOW();
     EXCEPTION WHEN OTHERS THEN
         -- Bei jedem Fehler: Versuche Update falls Kunde mit anderer ID oder E-Mail existiert
