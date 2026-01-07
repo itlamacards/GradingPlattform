@@ -133,58 +133,9 @@ export const authService = {
     const existingCustomer = await customerService.getCustomerByEmail(normalizedEmail)
     
     if (existingCustomer) {
-      if (existingCustomer.status === 'UNVERIFIED') {
-        // Strategie: "Upsert UNVERIFIED" - erlaube Re-Registrierung mit Rate-Limit
-        // Prüfe Rate-Limit (falls Funktion existiert)
-        try {
-          const { data: canResend } = await supabase.rpc('can_resend_verification', {
-            p_customer_id: existingCustomer.id,
-            p_cooldown_seconds: 60,
-            p_max_per_hour: 5
-          })
-          
-          if (canResend === false) {
-            throw new Error('Bitte warten Sie, bevor Sie eine neue E-Mail anfordern.')
-          }
-        } catch (e: any) {
-          // Wenn RPC-Funktion nicht existiert, ignorieren wir das Rate-Limit
-          // Wenn Rate-Limit aktiv ist, werfen wir den Fehler weiter
-          if (e.message?.includes('warten')) {
-            throw e
-          }
-          // Sonst ignorieren (Funktion existiert nicht)
-        }
-        
-        // Resend Verification E-Mail
-        const { error: resendError } = await supabase.auth.resend({
-          type: 'signup',
-          email: normalizedEmail
-        })
-        
-        if (resendError) {
-          logApiError('POST', 'auth/resendVerification', resendError)
-        }
-        
-        // update_last_verification_sent_at wird optional aufgerufen (falls Funktion existiert)
-        try {
-          await supabase.rpc('update_last_verification_sent_at', {
-            p_customer_id: existingCustomer.id
-          })
-        } catch (e) {
-          // Ignore if function doesn't exist
-        }
-        
-        // Immer success zurückgeben (User Enumeration Schutz)
-        return {
-          user: { id: existingCustomer.id, email: normalizedEmail },
-          session: null,
-          message: 'Wenn ein Konto existiert, wurde eine E-Mail gesendet.'
-        }
-      } else {
-        // ACTIVE, DELETED, SUSPENDED, LOCKED, etc. - alle bestehenden Accounts
-        // Auch wenn Status nicht gesetzt ist, ist es ein bestehender Account
-        throw new Error('Diese E-Mail-Adresse ist bereits mit einem Account verknüpft. Bitte loggen Sie sich ein oder verwenden Sie die Funktion "Passwort vergessen".')
-      }
+      // Alle bestehenden Accounts - egal welcher Status
+      // Auch UNVERIFIED Accounts sind bereits registriert
+      throw new Error('Diese E-Mail-Adresse ist bereits mit einem Account verknüpft. Bitte loggen Sie sich ein oder verwenden Sie die Funktion "Passwort vergessen".')
     }
     
     // 2. Neuer User - normale Registrierung
