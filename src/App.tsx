@@ -7,7 +7,7 @@ import EmailConfirmation from './components/EmailConfirmation'
 import { logger } from './utils/logger'
 
 function AppContent() {
-  const { user, isAdmin, loading } = useAuth()
+  const { user, isAdmin, loading, error, clearError } = useAuth()
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false)
 
   // Prüfe URL-Parameter für E-Mail-Bestätigung
@@ -53,6 +53,43 @@ function AppContent() {
           minWidth: '100vw'
         }}
       />
+      
+      {/* Error Modal - IMMER gerendert, unabhängig von Komponenten-Mount */}
+      {error && (
+        <div 
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              clearError()
+            }
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full border-2 border-red-200">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-4 flex-1">
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Fehler</h3>
+                <p className="text-gray-700">{error}</p>
+              </div>
+              <button
+                onClick={clearError}
+                className="ml-4 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Schließen"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Content */}
       <div className="relative z-10">

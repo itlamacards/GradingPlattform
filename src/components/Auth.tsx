@@ -133,9 +133,8 @@ function Auth() {
       console.log('🔴 Fehlermeldung:', errorMessage)
       setLoginError(errorMessage)
       setLoginLoading(false)
-      // Show error DIRECTLY - no setTimeout!
-      console.log('🔴 showError wird DIREKT aufgerufen')
-      showError(errorMessage)
+      // Error wird jetzt im AuthContext gesetzt und in App.tsx angezeigt
+      // Kein showError mehr nötig!
     } finally {
       // Loading wird bereits im catch/success gesetzt
     }

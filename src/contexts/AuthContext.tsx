@@ -13,6 +13,8 @@ interface AuthContextType {
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<any>
   signOut: () => Promise<void>
   isAdmin: boolean
+  error: string | null
+  clearError: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -22,6 +24,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [customerId, setCustomerId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  
+  const clearError = useCallback(() => {
+    setError(null)
+  }, [])
 
   const loadCustomerData = useCallback(async (_userId: string, email: string) => {
     try {
@@ -101,16 +108,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     setLoading(true)
+    setError(null) // Clear previous error
     logAuth('Login-Versuch gestartet', { email })
     
     try {
       const result = await authService.signIn(email, password)
       logAuth('Login erfolgreich', { email })
+      setLoading(false)
       // User wird durch onAuthStateChange gesetzt
       return result
     } catch (error) {
       logError('AuthContext.signIn', error)
       setLoading(false)
+      // Set error in context - this will be displayed in App.tsx
+      const errorMessage = error instanceof Error ? error.message : 'Ein Fehler ist aufgetreten'
+      setError(errorMessage)
       throw error
     }
   }
@@ -166,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, customerId, loading, signIn, signUp, signOut, isAdmin }}>
+    <AuthContext.Provider value={{ user, customerId, loading, signIn, signUp, signOut, isAdmin, error, clearError }}>
       {children}
     </AuthContext.Provider>
   )
