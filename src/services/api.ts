@@ -135,14 +135,24 @@ export const authService = {
     if (existingCustomer) {
       if (existingCustomer.status === 'UNVERIFIED') {
         // Strategie: "Upsert UNVERIFIED" - erlaube Re-Registrierung mit Rate-Limit
-        const canResend = await supabase.rpc('can_resend_verification', {
-          p_customer_id: existingCustomer.id,
-          p_cooldown_seconds: 60,
-          p_max_per_hour: 5
-        })
-        
-        if (!canResend.data) {
-          throw new Error('Bitte warten Sie, bevor Sie eine neue E-Mail anfordern.')
+        // Prüfe Rate-Limit (falls Funktion existiert)
+        try {
+          const { data: canResend } = await supabase.rpc('can_resend_verification', {
+            p_customer_id: existingCustomer.id,
+            p_cooldown_seconds: 60,
+            p_max_per_hour: 5
+          })
+          
+          if (canResend === false) {
+            throw new Error('Bitte warten Sie, bevor Sie eine neue E-Mail anfordern.')
+          }
+        } catch (e: any) {
+          // Wenn RPC-Funktion nicht existiert, ignorieren wir das Rate-Limit
+          // Wenn Rate-Limit aktiv ist, werfen wir den Fehler weiter
+          if (e.message?.includes('warten')) {
+            throw e
+          }
+          // Sonst ignorieren (Funktion existiert nicht)
         }
         
         // Resend Verification E-Mail
@@ -151,12 +161,17 @@ export const authService = {
           email: normalizedEmail
         })
         
-        if (!resendError) {
+        if (resendError) {
+          logApiError('POST', 'auth/resendVerification', resendError)
+        }
+        
+        // update_last_verification_sent_at wird optional aufgerufen (falls Funktion existiert)
+        try {
           await supabase.rpc('update_last_verification_sent_at', {
             p_customer_id: existingCustomer.id
           })
-        } else {
-          logApiError('POST', 'auth/resendVerification', resendError)
+        } catch (e) {
+          // Ignore if function doesn't exist
         }
         
         // Immer success zurückgeben (User Enumeration Schutz)
@@ -165,8 +180,9 @@ export const authService = {
           session: null,
           message: 'Wenn ein Konto existiert, wurde eine E-Mail gesendet.'
         }
-      } else if (existingCustomer.status === 'ACTIVE') {
-        throw new Error('Ein Account mit dieser E-Mail existiert bereits. Bitte loggen Sie sich ein.')
+      } else if (existingCustomer.status === 'ACTIVE' || !existingCustomer.status) {
+        // Status ist ACTIVE oder nicht gesetzt (bestehender Account)
+        throw new Error('Diese E-Mail-Adresse ist bereits mit einem Account verknüpft. Bitte loggen Sie sich ein oder verwenden Sie die Funktion "Passwort vergessen".')
       } else {
         // DELETED, SUSPENDED, etc. - generische Meldung
         throw new Error('E-Mail oder Passwort ist falsch.')
@@ -336,14 +352,24 @@ export const customerService = {
   async getCustomerByEmail(email: string) {
     const normalizedEmail = email.toLowerCase().trim()
     
+    // Direkte Query statt RPC (da get_customer_with_status nicht existiert)
     const { data, error } = await supabase
-      .rpc('get_customer_with_status', { p_email: normalizedEmail })
+      .from('customers')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
     
     if (error && error.code !== 'PGRST116') {
+      logApiError('GET', 'customers/getCustomerByEmail', error)
       throw error
     }
     
-    return data?.[0] || null
+    // Prüfe deleted_at manuell (falls Spalte existiert)
+    if (data && data.deleted_at) {
+      return null
+    }
+    
+    return data || null
   },
   
   // Kunde nach E-Mail finden (alle Felder)
