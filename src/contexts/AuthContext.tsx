@@ -111,7 +111,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       
       // Wenn User bereits bestätigt ist, wird er durch onAuthStateChange automatisch eingeloggt
-      // Wenn nicht, muss er die E-Mail bestätigen
+      // In diesem Fall wird loading durch onAuthStateChange auf false gesetzt
+      // Wenn nicht bestätigt, müssen wir loading manuell auf false setzen
+      if (!data?.user?.email_confirmed_at) {
+        setLoading(false)
+      }
+      
       // Der Trigger in der Datenbank erstellt automatisch den Customer-Eintrag
       
       return data
