@@ -136,7 +136,7 @@ function Auth() {
         </div>
       )
     } else {
-      // Automatisch bestätigt - wird eingeloggt
+      // Automatisch bestätigt - User muss sich einloggen (Sicherheit!)
       return (
         <div className="min-h-screen flex items-center justify-center p-4 animate-fadeIn">
           <div className="w-full max-w-md">
@@ -151,9 +151,24 @@ function Auth() {
               <h2 className="text-2xl font-bold text-gray-800 mb-4">
                 Registrierung erfolgreich!
               </h2>
-              <p className="text-gray-600 mb-6">
-                Ihr Konto wurde erstellt. Sie werden automatisch angemeldet...
+              <p className="text-gray-600 mb-4">
+                Ihr Konto wurde erstellt und ist bereit zur Verwendung.
               </p>
+              <p className="text-gray-600 mb-6">
+                Bitte loggen Sie sich jetzt mit Ihren Zugangsdaten ein.
+              </p>
+              <button
+                onClick={() => {
+                  setRegisterSuccess(false)
+                  setNeedsEmailConfirmation(false)
+                  setRegisteredEmail('')
+                  // Zurück zum Login-Formular
+                  setIsRegister(false)
+                }}
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:scale-95"
+              >
+                Jetzt einloggen
+              </button>
             </div>
           </div>
         </div>

@@ -110,12 +110,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         emailConfirmed: data?.user?.email_confirmed_at !== null
       })
       
-      // Wenn User bereits bestätigt ist, wird er durch onAuthStateChange automatisch eingeloggt
-      // In diesem Fall wird loading durch onAuthStateChange auf false gesetzt
-      // Wenn nicht bestätigt, müssen wir loading manuell auf false setzen
-      if (!data?.user?.email_confirmed_at) {
-        setLoading(false)
+      // WICHTIG: User wird NIE automatisch eingeloggt nach Registrierung (Sicherheit!)
+      // Auch wenn bereits bestätigt, muss sich User explizit einloggen
+      // Wir loggen den User aus, falls er durch signUp automatisch eingeloggt wurde
+      if (data?.session) {
+        logAuth('User wurde automatisch eingeloggt - Logout für Sicherheit', { email })
+        await authService.signOut()
+        setUser(null)
+        setCustomerId(null)
       }
+      
+      setLoading(false)
       
       // Der Trigger in der Datenbank erstellt automatisch den Customer-Eintrag
       
