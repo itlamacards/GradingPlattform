@@ -180,12 +180,10 @@ export const authService = {
           session: null,
           message: 'Wenn ein Konto existiert, wurde eine E-Mail gesendet.'
         }
-      } else if (existingCustomer.status === 'ACTIVE' || !existingCustomer.status) {
-        // Status ist ACTIVE oder nicht gesetzt (bestehender Account)
-        throw new Error('Diese E-Mail-Adresse ist bereits mit einem Account verknüpft. Bitte loggen Sie sich ein oder verwenden Sie die Funktion "Passwort vergessen".')
       } else {
-        // DELETED, SUSPENDED, etc. - generische Meldung
-        throw new Error('E-Mail oder Passwort ist falsch.')
+        // ACTIVE, DELETED, SUSPENDED, LOCKED, etc. - alle bestehenden Accounts
+        // Auch wenn Status nicht gesetzt ist, ist es ein bestehender Account
+        throw new Error('Diese E-Mail-Adresse ist bereits mit einem Account verknüpft. Bitte loggen Sie sich ein oder verwenden Sie die Funktion "Passwort vergessen".')
       }
     }
     
@@ -205,21 +203,29 @@ export const authService = {
     if (error) {
       logApiError('POST', 'auth/signUp', error)
       logError('authService.signUp', error)
+      
+      // Prüfe ob E-Mail bereits existiert
+      if (error.message?.includes('already registered') || 
+          error.message?.includes('User already registered') ||
+          error.message?.includes('email address is already registered')) {
+        throw new Error('Diese E-Mail-Adresse ist bereits mit einem Account verknüpft. Bitte loggen Sie sich ein oder verwenden Sie die Funktion "Passwort vergessen".')
+      }
+      
       throw error
     }
     
-    // 3. Status in customers Tabelle setzen (wird durch Trigger gemacht, aber sicherstellen)
-    if (data?.user?.id) {
-      // Trigger sollte das automatisch machen, aber wir können es auch explizit setzen
-      await supabase.rpc('set_customer_status', {
-        p_customer_id: data.user.id,
-        p_new_status: 'UNVERIFIED'
-      })
-      
-      await supabase.rpc('update_last_verification_sent_at', {
-        p_customer_id: data.user.id
-      })
+    // 3. Prüfe ob User wirklich neu erstellt wurde (Supabase kann manchmal bestehende User zurückgeben)
+    if (data?.user) {
+      // Prüfe nochmal, ob Customer bereits existiert (könnte durch Trigger erstellt worden sein)
+      const checkCustomer = await customerService.getCustomerByEmail(normalizedEmail)
+      if (checkCustomer && checkCustomer.status === 'ACTIVE') {
+        // User existiert bereits - Fehler werfen
+        throw new Error('Diese E-Mail-Adresse ist bereits mit einem Account verknüpft. Bitte loggen Sie sich ein oder verwenden Sie die Funktion "Passwort vergessen".')
+      }
     }
+    
+    // 4. Status in customers Tabelle wird durch Trigger automatisch gesetzt
+    // Der Trigger handle_new_auth_user erstellt automatisch den Customer-Eintrag
     
     logApiSuccess('POST', 'auth/signUp', { 
       userId: data?.user?.id, 
