@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getUserFriendlyErrorMessage, logError } from '../utils/errorHandler'
 import { logComponent } from '../utils/logger'
@@ -16,6 +16,12 @@ function Auth() {
   const [showErrorPopup, setShowErrorPopup] = useState(false)
   const [errorPopupMessage, setErrorPopupMessage] = useState('')
 
+  // Debug: Logge State-Änderungen
+  useEffect(() => {
+    console.log('🔍 showErrorPopup State geändert:', showErrorPopup)
+    console.log('🔍 errorPopupMessage:', errorPopupMessage)
+  }, [showErrorPopup, errorPopupMessage])
+
   // Register State
   const [registerEmail, setRegisterEmail] = useState('')
   const [registerPassword, setRegisterPassword] = useState('')
@@ -30,8 +36,10 @@ function Auth() {
 
   // Fehler-Popup anzeigen
   const showError = (message: string) => {
+    console.log('🔴 showError aufgerufen:', message)
     setErrorPopupMessage(message)
     setShowErrorPopup(true)
+    console.log('🔴 showErrorPopup gesetzt auf true')
     // Auto-close nach 5 Sekunden
     setTimeout(() => {
       setShowErrorPopup(false)
@@ -41,13 +49,16 @@ function Auth() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    console.log('🔵 handleLogin gestartet')
     setLoginError('')
     setLoginLoading(true)
     
     logComponent('Auth', 'Login-Versuch', { email: loginEmail })
     
     try {
+      console.log('🔵 signIn wird aufgerufen...')
       const result = await signIn(loginEmail, loginPassword)
+      console.log('🔵 signIn erfolgreich:', result)
       
       // Prüfe ob Passwort-Reset erforderlich ist
       if (result && 'requiresPasswordReset' in result && result.requiresPasswordReset) {
@@ -60,8 +71,10 @@ function Auth() {
       
       logComponent('Auth', 'Login erfolgreich')
     } catch (err) {
+      console.error('🔴 Login-Fehler gefangen:', err)
       logError('Auth.handleLogin', err)
       const errorMessage = getUserFriendlyErrorMessage(err)
+      console.log('🔴 Fehlermeldung:', errorMessage)
       setLoginError(errorMessage)
       showError(errorMessage)
     } finally {
@@ -223,10 +236,18 @@ function Auth() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 animate-fadeIn">
-      {/* Fehler-Popup */}
+    <>
+      {/* Fehler-Popup - außerhalb des main containers für bessere Sichtbarkeit */}
       {showErrorPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowErrorPopup(false)
+            }
+          }}
+        >
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full border-2 border-red-200 animate-slideDown">
             <div className="flex items-start">
               <div className="flex-shrink-0">
@@ -241,8 +262,12 @@ function Auth() {
                 <p className="text-gray-700">{errorPopupMessage}</p>
               </div>
               <button
-                onClick={() => setShowErrorPopup(false)}
+                onClick={() => {
+                  console.log('🔴 Popup Close Button geklickt')
+                  setShowErrorPopup(false)
+                }}
                 className="ml-4 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Schließen"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -252,6 +277,8 @@ function Auth() {
           </div>
         </div>
       )}
+
+      <div className="min-h-screen flex items-center justify-center p-4 animate-fadeIn">
 
       <div className="w-full max-w-md">
         {/* Logo */}
@@ -501,6 +528,7 @@ function Auth() {
         </div>
       </div>
     </div>
+    </>
   )
 }
 
