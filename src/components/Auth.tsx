@@ -51,25 +51,34 @@ function Auth() {
     // Clear existing timeout
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
     }
     
-    // Set message first
+    // Set message and show popup - KEIN TIMEOUT HIER!
     setErrorPopupMessage(message)
-    
-    // Then set popup to show - use functional update to ensure state is set
-    setShowErrorPopup((prev) => {
-      console.log('🔴 setShowErrorPopup called, prev:', prev)
-      return true
-    })
-    
+    setShowErrorPopup(true)
     console.log('🔴 showErrorPopup gesetzt auf true')
-    
-    // Auto-close nach 5 Sekunden
-    timeoutRef.current = setTimeout(() => {
-      console.log('🔴 Auto-close timeout ausgelöst')
-      setShowErrorPopup(false)
-    }, 5000)
   }
+
+  // Auto-close nach 5 Sekunden wenn Popup sichtbar ist
+  useEffect(() => {
+    if (showErrorPopup && errorPopupMessage) {
+      console.log('🔴 useEffect: Popup ist sichtbar, setze Auto-Close Timer für:', errorPopupMessage)
+      timeoutRef.current = setTimeout(() => {
+        console.log('🔴 Auto-close timeout ausgelöst')
+        setShowErrorPopup(false)
+        timeoutRef.current = null
+      }, 5000)
+      
+      return () => {
+        if (timeoutRef.current) {
+          console.log('🔴 Cleanup: Timeout gelöscht')
+          clearTimeout(timeoutRef.current)
+          timeoutRef.current = null
+        }
+      }
+    }
+  }, [showErrorPopup, errorPopupMessage])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
