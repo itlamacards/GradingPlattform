@@ -27,23 +27,19 @@ export const authService = {
       throw new Error('Bitte geben Sie E-Mail und Passwort ein.')
     }
     
-    // Prüfe Customer-Status
-    let customer
-    try {
-      customer = await customerService.getCustomerByEmail(normalizedEmail)
-    } catch (e) {
-      // Fallback zu getCustomerByEmailFull
-      try {
-        customer = await customerService.getCustomerByEmailFull(normalizedEmail)
-      } catch (e2) {
-        throw new Error('Diese E-Mail-Adresse ist nicht registriert.')
-      }
-    }
+    // Prüfe Customer-Status (direkte Query)
+    const { data: customerData, error: customerError } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .is('deleted_at', null)
+      .maybeSingle()
     
-    // Status-Checks
-    if (!customer) {
+    if (customerError || !customerData) {
       throw new Error('Diese E-Mail-Adresse ist nicht registriert.')
     }
+    
+    const customer = customerData
     
     if (customer.status === 'DELETED') {
       throw new Error('Dieser Account wurde gelöscht.')
