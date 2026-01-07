@@ -7,103 +7,24 @@ import { logApiCall, logApiSuccess, logApiError } from '../utils/logger'
 // AUTHENTIFIZIERUNG
 // ============================================
 
+import { secureSignIn } from './secureLogin'
+
 export const authService = {
-  // Login mit E-Mail und Passwort (mit State-Machine)
+  // Login mit E-Mail und Passwort (mit vollständigem Security)
   async signIn(email: string, password: string) {
-    logApiCall('POST', 'auth/signIn', { email })
+    logApiCall('POST', 'auth/signIn', { email: email.substring(0, 3) + '***' })
     
-    const normalizedEmail = email.toLowerCase().trim()
+    const result = await secureSignIn(email, password)
     
-    // 1. Prüfe Customer-Status VOR Passwort-Check
-    const customer = await customerService.getCustomerByEmail(normalizedEmail)
-    
-    // 2. Status-Checks (User Enumeration Schutz beachten!)
-    if (!customer) {
-      // User existiert nicht - generische Meldung
-      logApiError('POST', 'auth/signIn', { error: 'User not found', email: normalizedEmail })
-      // Fake Passwort-Check für Timing-Schutz (optional)
-      await new Promise(resolve => setTimeout(resolve, 100))
-      throw new Error('E-Mail oder Passwort ist falsch.')
+    if (!result.success) {
+      throw new Error(result.error || 'E-Mail oder Passwort ist falsch.')
     }
     
-    // 3. Status-spezifische Checks
-    if (customer.status === 'DELETED') {
-      logApiError('POST', 'auth/signIn', { error: 'Account deleted', email: normalizedEmail })
-      await new Promise(resolve => setTimeout(resolve, 100))
-      throw new Error('E-Mail oder Passwort ist falsch.')
+    if (result.requiresPasswordReset) {
+      return { ...result.data, requiresPasswordReset: true }
     }
     
-    if (customer.status === 'SUSPENDED') {
-      logApiError('POST', 'auth/signIn', { error: 'Account suspended', email: normalizedEmail })
-      throw new Error('Ihr Account wurde gesperrt. Bitte kontaktieren Sie den Support.')
-    }
-    
-    if (customer.status === 'LOCKED') {
-      // Prüfe ob Lock abgelaufen
-      const { data: unlocked } = await supabase.rpc('unlock_customer_account_if_expired', {
-        p_customer_id: customer.id
-      })
-      
-      if (!unlocked) {
-        const lockedUntil = customer.locked_until
-        const lockedUntilStr = lockedUntil 
-          ? new Date(lockedUntil).toLocaleString('de-DE')
-          : 'später'
-        logApiError('POST', 'auth/signIn', { error: 'Account locked', email: normalizedEmail })
-        throw new Error(`Zu viele Fehlversuche. Account gesperrt bis ${lockedUntilStr}.`)
-      }
-      
-      // Lock wurde aufgehoben - hole aktualisierten Customer
-      const updatedCustomer = await customerService.getCustomerByEmail(normalizedEmail)
-      if (updatedCustomer?.status === 'LOCKED') {
-        throw new Error(`Zu viele Fehlversuche. Account gesperrt.`)
-      }
-    }
-    
-    // 4. Passwort-Check (Supabase Auth)
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    })
-    
-    if (error) {
-      // Passwort falsch - Failed-Login-Count erhöhen
-      logApiError('POST', 'auth/signIn', error)
-      
-      if (customer) {
-        await supabase.rpc('increment_failed_login_count', {
-          p_customer_id: customer.id
-        })
-      }
-      
-      throw new Error('E-Mail oder Passwort ist falsch.')
-    }
-    
-    // 5. Passwort korrekt - weitere Status-Checks
-    if (customer.status === 'UNVERIFIED') {
-      logApiError('POST', 'auth/signIn', { error: 'Email not verified', email: normalizedEmail })
-      await supabase.auth.signOut()
-      throw new Error('Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse. Prüfen Sie Ihr Postfach.')
-    }
-    
-    if (customer.status === 'PASSWORD_RESET_REQUIRED') {
-      logApiSuccess('POST', 'auth/signIn', { 
-        userId: data?.user?.id, 
-        email: data?.user?.email,
-        requiresPasswordReset: true
-      })
-      return { ...data, requiresPasswordReset: true }
-    }
-    
-    // 6. Erfolgreich - Reset Failed-Login-Count
-    if (customer) {
-      await supabase.rpc('reset_failed_login_count', {
-        p_customer_id: customer.id
-      })
-    }
-    
-    logApiSuccess('POST', 'auth/signIn', { userId: data?.user?.id, email: data?.user?.email })
-    return data
+    return result.data
   },
 
   // Registrierung (mit Duplikat-Behandlung)
