@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getUserFriendlyErrorMessage, logError } from '../utils/errorHandler'
 import { logComponent } from '../utils/logger'
@@ -15,12 +15,22 @@ function Auth() {
   const [loginLoading, setLoginLoading] = useState(false)
   const [showErrorPopup, setShowErrorPopup] = useState(false)
   const [errorPopupMessage, setErrorPopupMessage] = useState('')
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Debug: Logge State-Änderungen
   useEffect(() => {
     console.log('🔍 showErrorPopup State geändert:', showErrorPopup)
     console.log('🔍 errorPopupMessage:', errorPopupMessage)
   }, [showErrorPopup, errorPopupMessage])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [])
 
   // Register State
   const [registerEmail, setRegisterEmail] = useState('')
@@ -37,11 +47,26 @@ function Auth() {
   // Fehler-Popup anzeigen
   const showError = (message: string) => {
     console.log('🔴 showError aufgerufen:', message)
+    
+    // Clear existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
+    
+    // Set message first
     setErrorPopupMessage(message)
-    setShowErrorPopup(true)
+    
+    // Then set popup to show - use functional update to ensure state is set
+    setShowErrorPopup((prev) => {
+      console.log('🔴 setShowErrorPopup called, prev:', prev)
+      return true
+    })
+    
     console.log('🔴 showErrorPopup gesetzt auf true')
+    
     // Auto-close nach 5 Sekunden
-    setTimeout(() => {
+    timeoutRef.current = setTimeout(() => {
+      console.log('🔴 Auto-close timeout ausgelöst')
       setShowErrorPopup(false)
     }, 5000)
   }
@@ -50,7 +75,15 @@ function Auth() {
     e.preventDefault()
     e.stopPropagation()
     console.log('🔵 handleLogin gestartet')
+    
+    // Reset error states
     setLoginError('')
+    setShowErrorPopup(false)
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+    
     setLoginLoading(true)
     
     logComponent('Auth', 'Login-Versuch', { email: loginEmail })
@@ -64,8 +97,9 @@ function Auth() {
       if (result && 'requiresPasswordReset' in result && result.requiresPasswordReset) {
         const errorMsg = 'Bitte setzen Sie ein neues Passwort.'
         setLoginError(errorMsg)
-        showError(errorMsg)
         setLoginLoading(false)
+        // Show error after loading is set to false to avoid state conflicts
+        setTimeout(() => showError(errorMsg), 0)
         return
       }
       
@@ -76,9 +110,14 @@ function Auth() {
       const errorMessage = getUserFriendlyErrorMessage(err)
       console.log('🔴 Fehlermeldung:', errorMessage)
       setLoginError(errorMessage)
-      showError(errorMessage)
-    } finally {
       setLoginLoading(false)
+      // Show error after loading is set to false to avoid state conflicts
+      setTimeout(() => {
+        console.log('🔴 showError wird nach setTimeout aufgerufen')
+        showError(errorMessage)
+      }, 0)
+    } finally {
+      // Loading wird bereits im catch/success gesetzt
     }
   }
 
