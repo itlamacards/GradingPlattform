@@ -107,20 +107,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [checkUser, loadCustomerData])
 
   const signIn = async (email: string, password: string) => {
-    setLoading(true)
+    // KEIN setLoading(true) hier - die Auth-Komponente hat bereits loginLoading
     setError(null) // Clear previous error
     logAuth('Login-Versuch gestartet', { email })
     
     try {
       const result = await authService.signIn(email, password)
       logAuth('Login erfolgreich', { email })
-      setLoading(false)
       // User wird durch onAuthStateChange gesetzt
+      // onAuthStateChange setzt loading automatisch auf false
       return result
     } catch (error) {
       logError('AuthContext.signIn', error)
-      setLoading(false)
       // Set error in context - this will be displayed in App.tsx
+      // WICHTIG: Error wird gesetzt, BEVOR wir den Error werfen
       const errorMessage = error instanceof Error ? error.message : 'Ein Fehler ist aufgetreten'
       setError(errorMessage)
       throw error
@@ -128,7 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
-    setLoading(true)
+    // KEIN setLoading(true) hier - die Auth-Komponente hat bereits registerLoading
+    setError(null) // Clear previous error
     logAuth('Registrierung gestartet', { email, firstName, lastName })
     
     try {
@@ -150,14 +151,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCustomerId(null)
       }
       
-      setLoading(false)
-      
       // Der Trigger in der Datenbank erstellt automatisch den Customer-Eintrag
       
       return data
     } catch (error) {
       logError('AuthContext.signUp', error)
-      setLoading(false)
+      // Set error in context - this will be displayed in App.tsx
+      const errorMessage = error instanceof Error ? error.message : 'Ein Fehler ist aufgetreten'
+      setError(errorMessage)
       throw error
     }
   }
