@@ -45,7 +45,7 @@ export const authService = {
     
     // Input-Validation
     if (!normalizedEmail || !password) {
-      throw new Error('E-Mail oder Passwort ist falsch.')
+      throw new Error('Bitte geben Sie E-Mail und Passwort ein.')
     }
     
     // Prüfe Customer-Status
@@ -57,22 +57,17 @@ export const authService = {
       try {
         customer = await customerService.getCustomerByEmailFull(normalizedEmail)
       } catch (e2) {
-        // Timing-Schutz
-        await new Promise(resolve => setTimeout(resolve, 150))
-        throw new Error('E-Mail oder Passwort ist falsch.')
+        throw new Error('Diese E-Mail-Adresse ist nicht registriert.')
       }
     }
     
     // Status-Checks
     if (!customer) {
-      // Timing-Schutz
-      await new Promise(resolve => setTimeout(resolve, 150))
-      throw new Error('E-Mail oder Passwort ist falsch.')
+      throw new Error('Diese E-Mail-Adresse ist nicht registriert.')
     }
     
     if (customer.status === 'DELETED') {
-      await new Promise(resolve => setTimeout(resolve, 150))
-      throw new Error('E-Mail oder Passwort ist falsch.')
+      throw new Error('Dieser Account wurde gelöscht.')
     }
     
     if (customer.status === 'SUSPENDED') {
@@ -85,7 +80,11 @@ export const authService = {
       })
       
       if (!unlocked) {
-        throw new Error('E-Mail oder Passwort ist falsch.')
+        const lockedUntil = customer.locked_until
+        const lockedUntilStr = lockedUntil 
+          ? new Date(lockedUntil).toLocaleString('de-DE')
+          : 'später'
+        throw new Error(`Zu viele Fehlversuche. Account gesperrt bis ${lockedUntilStr}.`)
       }
     }
     
@@ -96,7 +95,7 @@ export const authService = {
     })
     
     if (error) {
-      // Passwort falsch
+      // Passwort falsch - spezifische Meldung!
       if (customer) {
         try {
           await supabase.rpc('increment_failed_login_count', {
@@ -105,6 +104,11 @@ export const authService = {
         } catch (e) {
           // Ignore if function doesn't exist
         }
+      }
+      
+      // Prüfe spezifischen Fehler
+      if (error.message?.includes('Invalid login credentials') || error.message?.includes('Invalid password')) {
+        throw new Error('Das Passwort ist falsch.')
       }
       
       throw new Error('E-Mail oder Passwort ist falsch.')
