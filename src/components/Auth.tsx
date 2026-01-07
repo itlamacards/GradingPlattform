@@ -13,6 +13,8 @@ function Auth() {
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
+  const [showErrorPopup, setShowErrorPopup] = useState(false)
+  const [errorPopupMessage, setErrorPopupMessage] = useState('')
 
   // Register State
   const [registerEmail, setRegisterEmail] = useState('')
@@ -26,8 +28,19 @@ function Auth() {
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false)
   const [registeredEmail, setRegisteredEmail] = useState('')
 
+  // Fehler-Popup anzeigen
+  const showError = (message: string) => {
+    setErrorPopupMessage(message)
+    setShowErrorPopup(true)
+    // Auto-close nach 5 Sekunden
+    setTimeout(() => {
+      setShowErrorPopup(false)
+    }, 5000)
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     setLoginError('')
     setLoginLoading(true)
     
@@ -38,8 +51,10 @@ function Auth() {
       
       // Prüfe ob Passwort-Reset erforderlich ist
       if (result && 'requiresPasswordReset' in result && result.requiresPasswordReset) {
-        setLoginError('Bitte setzen Sie ein neues Passwort.')
-        // TODO: Redirect zu Passwort-Reset-Seite
+        const errorMsg = 'Bitte setzen Sie ein neues Passwort.'
+        setLoginError(errorMsg)
+        showError(errorMsg)
+        setLoginLoading(false)
         return
       }
       
@@ -48,6 +63,7 @@ function Auth() {
       logError('Auth.handleLogin', err)
       const errorMessage = getUserFriendlyErrorMessage(err)
       setLoginError(errorMessage)
+      showError(errorMessage)
     } finally {
       setLoginLoading(false)
     }
@@ -94,7 +110,9 @@ function Auth() {
       setRegisterSuccess(true)
     } catch (err) {
       logError('Auth.handleRegister', err)
-      setRegisterError(getUserFriendlyErrorMessage(err))
+      const errorMessage = getUserFriendlyErrorMessage(err)
+      setRegisterError(errorMessage)
+      showError(errorMessage)
     } finally {
       setRegisterLoading(false)
     }
@@ -206,6 +224,35 @@ function Auth() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 animate-fadeIn">
+      {/* Fehler-Popup */}
+      {showErrorPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full border-2 border-red-200 animate-slideDown">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-4 flex-1">
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Fehler</h3>
+                <p className="text-gray-700">{errorPopupMessage}</p>
+              </div>
+              <button
+                onClick={() => setShowErrorPopup(false)}
+                className="ml-4 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex justify-center mb-8 animate-slideDown">
