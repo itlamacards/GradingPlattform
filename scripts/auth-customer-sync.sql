@@ -75,7 +75,9 @@ BEGIN
             first_name,
             last_name,
             email,
-            phone
+            phone,
+            status,  -- Status basierend auf email_confirmed_at
+            email_verified_at
         ) VALUES (
             NEW.id,  -- Gleiche UUID wie Auth User
             v_customer_number,

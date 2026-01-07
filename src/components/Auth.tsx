@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getUserFriendlyErrorMessage, logError } from '../utils/errorHandler'
 import { logComponent } from '../utils/logger'
+import { authService } from '../services/api'
 
 function Auth() {
   const { signIn, signUp } = useAuth()
@@ -33,11 +34,20 @@ function Auth() {
     logComponent('Auth', 'Login-Versuch', { email: loginEmail })
     
     try {
-      await signIn(loginEmail, loginPassword)
+      const result = await signIn(loginEmail, loginPassword)
+      
+      // Prüfe ob Passwort-Reset erforderlich ist
+      if (result && 'requiresPasswordReset' in result && result.requiresPasswordReset) {
+        setLoginError('Bitte setzen Sie ein neues Passwort.')
+        // TODO: Redirect zu Passwort-Reset-Seite
+        return
+      }
+      
       logComponent('Auth', 'Login erfolgreich')
     } catch (err) {
       logError('Auth.handleLogin', err)
-      setLoginError(getUserFriendlyErrorMessage(err))
+      const errorMessage = getUserFriendlyErrorMessage(err)
+      setLoginError(errorMessage)
     } finally {
       setLoginLoading(false)
     }
@@ -121,16 +131,33 @@ function Auth() {
                   <li>Stellen Sie sicher, dass die E-Mail-Adresse korrekt ist</li>
                 </ul>
               </div>
-              <button
-                onClick={() => {
-                  setRegisterSuccess(false)
-                  setNeedsEmailConfirmation(false)
-                  setRegisteredEmail('')
-                }}
-                className="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
-              >
-                Zurück zur Anmeldung
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      await authService.resendVerificationEmail(registeredEmail)
+                      setRegisterError('')
+                      // Zeige Erfolgsmeldung
+                      alert('E-Mail wurde erneut gesendet. Bitte prüfen Sie Ihr Postfach.')
+                    } catch (err: any) {
+                      setRegisterError(err.message || 'Fehler beim Senden der E-Mail.')
+                    }
+                  }}
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200"
+                >
+                  E-Mail erneut senden
+                </button>
+                <button
+                  onClick={() => {
+                    setRegisterSuccess(false)
+                    setNeedsEmailConfirmation(false)
+                    setRegisteredEmail('')
+                  }}
+                  className="w-full text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
+                >
+                  Zurück zur Anmeldung
+                </button>
+              </div>
             </div>
           </div>
         </div>

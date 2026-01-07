@@ -9,8 +9,8 @@ interface AuthContextType {
   user: User | null
   customerId: string | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ user: User | null; session: any } | null>
+  signIn: (email: string, password: string) => Promise<any>
+  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<any>
   signOut: () => Promise<void>
   isAdmin: boolean
 }
@@ -65,9 +65,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Höre auf Auth-Änderungen
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         if (session?.user) {
           setUser(session.user)
+          
+          // E-Mail-Verifikation synchronisieren
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            // Prüfe ob E-Mail bestätigt ist (via Session)
+            // Supabase setzt email_confirmed_at in der Session
+            if (session.user && (session.user as any).email_confirmed_at) {
+              // Markiere E-Mail als verifiziert in customers Tabelle
+              try {
+                await supabase.rpc('mark_email_as_verified', {
+                  p_customer_id: session.user.id
+                })
+              } catch (error) {
+                logError('AuthContext.onAuthStateChange.mark_email_as_verified', error)
+              }
+            }
+          }
+          
           // Versuche Customer-ID aus user metadata zu holen oder aus customers Tabelle
           await loadCustomerData(session.user.id, session.user.email || '')
         } else {
@@ -87,9 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logAuth('Login-Versuch gestartet', { email })
     
     try {
-      await authService.signIn(email, password)
+      const result = await authService.signIn(email, password)
       logAuth('Login erfolgreich', { email })
       // User wird durch onAuthStateChange gesetzt
+      return result
     } catch (error) {
       logError('AuthContext.signIn', error)
       setLoading(false)
@@ -107,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logAuth('Registrierung erfolgreich', { 
         userId: data?.user?.id, 
         email: data?.user?.email,
-        emailConfirmed: data?.user?.email_confirmed_at !== null
+        emailConfirmed: (data?.user as any)?.email_confirmed_at !== null && (data?.user as any)?.email_confirmed_at !== undefined
       })
       
       // WICHTIG: User wird NIE automatisch eingeloggt nach Registrierung (Sicherheit!)

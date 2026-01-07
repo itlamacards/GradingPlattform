@@ -8,31 +8,157 @@ import { logApiCall, logApiSuccess, logApiError } from '../utils/logger'
 // ============================================
 
 export const authService = {
-  // Login mit E-Mail und Passwort
+  // Login mit E-Mail und Passwort (mit State-Machine)
   async signIn(email: string, password: string) {
     logApiCall('POST', 'auth/signIn', { email })
     
+    const normalizedEmail = email.toLowerCase().trim()
+    
+    // 1. Prüfe Customer-Status VOR Passwort-Check
+    const customer = await customerService.getCustomerByEmail(normalizedEmail)
+    
+    // 2. Status-Checks (User Enumeration Schutz beachten!)
+    if (!customer) {
+      // User existiert nicht - generische Meldung
+      logApiError('POST', 'auth/signIn', { error: 'User not found', email: normalizedEmail })
+      // Fake Passwort-Check für Timing-Schutz (optional)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      throw new Error('E-Mail oder Passwort ist falsch.')
+    }
+    
+    // 3. Status-spezifische Checks
+    if (customer.status === 'DELETED') {
+      logApiError('POST', 'auth/signIn', { error: 'Account deleted', email: normalizedEmail })
+      await new Promise(resolve => setTimeout(resolve, 100))
+      throw new Error('E-Mail oder Passwort ist falsch.')
+    }
+    
+    if (customer.status === 'SUSPENDED') {
+      logApiError('POST', 'auth/signIn', { error: 'Account suspended', email: normalizedEmail })
+      throw new Error('Ihr Account wurde gesperrt. Bitte kontaktieren Sie den Support.')
+    }
+    
+    if (customer.status === 'LOCKED') {
+      // Prüfe ob Lock abgelaufen
+      const { data: unlocked } = await supabase.rpc('unlock_customer_account_if_expired', {
+        p_customer_id: customer.id
+      })
+      
+      if (!unlocked) {
+        const lockedUntil = customer.locked_until
+        const lockedUntilStr = lockedUntil 
+          ? new Date(lockedUntil).toLocaleString('de-DE')
+          : 'später'
+        logApiError('POST', 'auth/signIn', { error: 'Account locked', email: normalizedEmail })
+        throw new Error(`Zu viele Fehlversuche. Account gesperrt bis ${lockedUntilStr}.`)
+      }
+      
+      // Lock wurde aufgehoben - hole aktualisierten Customer
+      const updatedCustomer = await customerService.getCustomerByEmail(normalizedEmail)
+      if (updatedCustomer?.status === 'LOCKED') {
+        throw new Error(`Zu viele Fehlversuche. Account gesperrt.`)
+      }
+    }
+    
+    // 4. Passwort-Check (Supabase Auth)
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: normalizedEmail,
       password,
     })
     
     if (error) {
+      // Passwort falsch - Failed-Login-Count erhöhen
       logApiError('POST', 'auth/signIn', error)
-      logError('authService.signIn', error)
-      throw error
+      
+      if (customer) {
+        await supabase.rpc('increment_failed_login_count', {
+          p_customer_id: customer.id
+        })
+      }
+      
+      throw new Error('E-Mail oder Passwort ist falsch.')
+    }
+    
+    // 5. Passwort korrekt - weitere Status-Checks
+    if (customer.status === 'UNVERIFIED') {
+      logApiError('POST', 'auth/signIn', { error: 'Email not verified', email: normalizedEmail })
+      await supabase.auth.signOut()
+      throw new Error('Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse. Prüfen Sie Ihr Postfach.')
+    }
+    
+    if (customer.status === 'PASSWORD_RESET_REQUIRED') {
+      logApiSuccess('POST', 'auth/signIn', { 
+        userId: data?.user?.id, 
+        email: data?.user?.email,
+        requiresPasswordReset: true
+      })
+      return { ...data, requiresPasswordReset: true }
+    }
+    
+    // 6. Erfolgreich - Reset Failed-Login-Count
+    if (customer) {
+      await supabase.rpc('reset_failed_login_count', {
+        p_customer_id: customer.id
+      })
     }
     
     logApiSuccess('POST', 'auth/signIn', { userId: data?.user?.id, email: data?.user?.email })
     return data
   },
 
-  // Registrierung
+  // Registrierung (mit Duplikat-Behandlung)
   async signUp(email: string, password: string, firstName: string, lastName: string) {
     logApiCall('POST', 'auth/signUp', { email, firstName, lastName })
     
+    const normalizedEmail = email.toLowerCase().trim()
+    
+    // 1. Prüfe ob User bereits existiert
+    const existingCustomer = await customerService.getCustomerByEmail(normalizedEmail)
+    
+    if (existingCustomer) {
+      if (existingCustomer.status === 'UNVERIFIED') {
+        // Strategie: "Upsert UNVERIFIED" - erlaube Re-Registrierung mit Rate-Limit
+        const canResend = await supabase.rpc('can_resend_verification', {
+          p_customer_id: existingCustomer.id,
+          p_cooldown_seconds: 60,
+          p_max_per_hour: 5
+        })
+        
+        if (!canResend.data) {
+          throw new Error('Bitte warten Sie, bevor Sie eine neue E-Mail anfordern.')
+        }
+        
+        // Resend Verification E-Mail
+        const { error: resendError } = await supabase.auth.resend({
+          type: 'signup',
+          email: normalizedEmail
+        })
+        
+        if (!resendError) {
+          await supabase.rpc('update_last_verification_sent_at', {
+            p_customer_id: existingCustomer.id
+          })
+        } else {
+          logApiError('POST', 'auth/resendVerification', resendError)
+        }
+        
+        // Immer success zurückgeben (User Enumeration Schutz)
+        return {
+          user: { id: existingCustomer.id, email: normalizedEmail },
+          session: null,
+          message: 'Wenn ein Konto existiert, wurde eine E-Mail gesendet.'
+        }
+      } else if (existingCustomer.status === 'ACTIVE') {
+        throw new Error('Ein Account mit dieser E-Mail existiert bereits. Bitte loggen Sie sich ein.')
+      } else {
+        // DELETED, SUSPENDED, etc. - generische Meldung
+        throw new Error('E-Mail oder Passwort ist falsch.')
+      }
+    }
+    
+    // 2. Neuer User - normale Registrierung
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: normalizedEmail,
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/confirm`,
@@ -49,11 +175,111 @@ export const authService = {
       throw error
     }
     
+    // 3. Status in customers Tabelle setzen (wird durch Trigger gemacht, aber sicherstellen)
+    if (data?.user?.id) {
+      // Trigger sollte das automatisch machen, aber wir können es auch explizit setzen
+      await supabase.rpc('set_customer_status', {
+        p_customer_id: data.user.id,
+        p_new_status: 'UNVERIFIED'
+      })
+      
+      await supabase.rpc('update_last_verification_sent_at', {
+        p_customer_id: data.user.id
+      })
+    }
+    
     logApiSuccess('POST', 'auth/signUp', { 
       userId: data?.user?.id, 
       email: data?.user?.email,
       emailConfirmed: data?.user?.email_confirmed_at !== null
     })
+    return data
+  },
+  
+  // E-Mail-Verifikation erneut senden (mit Rate-Limit)
+  async resendVerificationEmail(email: string) {
+    logApiCall('POST', 'auth/resendVerification', { email })
+    
+    const normalizedEmail = email.toLowerCase().trim()
+    const customer = await customerService.getCustomerByEmail(normalizedEmail)
+    
+    // User Enumeration Schutz: Immer success zurückgeben
+    if (!customer) {
+      return { success: true, message: 'Wenn ein Konto existiert, wurde eine E-Mail gesendet.' }
+    }
+    
+    // Rate-Limit prüfen
+    const { data: canResend } = await supabase.rpc('can_resend_verification', {
+      p_customer_id: customer.id,
+      p_cooldown_seconds: 60,
+      p_max_per_hour: 5
+    })
+    
+    if (!canResend) {
+      throw new Error('Bitte warten Sie, bevor Sie eine neue E-Mail anfordern.')
+    }
+    
+    // Supabase Resend
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: normalizedEmail
+    })
+    
+    if (!error) {
+      await supabase.rpc('update_last_verification_sent_at', {
+        p_customer_id: customer.id
+      })
+    }
+    
+    // Immer success (User Enumeration Schutz)
+    return { success: true, message: 'Wenn ein Konto existiert, wurde eine E-Mail gesendet.' }
+  },
+  
+  // Passwort-Reset anfordern
+  async requestPasswordReset(email: string) {
+    logApiCall('POST', 'auth/requestPasswordReset', { email })
+    
+    const normalizedEmail = email.toLowerCase().trim()
+    
+    // Immer success zurückgeben (User Enumeration Schutz)
+    await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: `${window.location.origin}/auth/reset-password`
+    })
+    
+    // Immer success (auch wenn User nicht existiert)
+    return { success: true, message: 'Wenn ein Konto existiert, wurde eine E-Mail gesendet.' }
+  },
+  
+  // Passwort zurücksetzen
+  async resetPassword(newPassword: string) {
+    logApiCall('POST', 'auth/resetPassword')
+    
+    const { data, error } = await supabase.auth.updateUser({
+      password: newPassword
+    })
+    
+    if (error) {
+      logApiError('POST', 'auth/resetPassword', error)
+      throw error
+    }
+    
+    // Status aktualisieren
+    if (data?.user?.id) {
+      await supabase.rpc('update_password_changed_at', {
+        p_customer_id: data.user.id
+      })
+      
+      await supabase.rpc('reset_failed_login_count', {
+        p_customer_id: data.user.id
+      })
+      
+      // Optional: Alle Sessions killen
+      await supabase.rpc('increment_session_version', {
+        p_customer_id: data.user.id
+      })
+    }
+    
+    logApiSuccess('POST', 'auth/resetPassword', { userId: data?.user?.id })
     return data
   },
 
@@ -89,16 +315,36 @@ export const authService = {
 // ============================================
 
 export const customerService = {
-  // Kunde nach E-Mail finden
+  // Kunde nach E-Mail finden (mit Status)
   async getCustomerByEmail(email: string) {
+    const normalizedEmail = email.toLowerCase().trim()
+    
+    const { data, error } = await supabase
+      .rpc('get_customer_with_status', { p_email: normalizedEmail })
+    
+    if (error && error.code !== 'PGRST116') {
+      throw error
+    }
+    
+    return data?.[0] || null
+  },
+  
+  // Kunde nach E-Mail finden (alle Felder)
+  async getCustomerByEmailFull(email: string) {
+    const normalizedEmail = email.toLowerCase().trim()
+    
     const { data, error } = await supabase
       .from('customers')
       .select('*')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
+      .is('deleted_at', null)
       .single()
     
-    if (error) throw error
-    return data
+    if (error && error.code !== 'PGRST116') {
+      throw error
+    }
+    
+    return data || null
   },
 
   // Kunde nach ID finden
