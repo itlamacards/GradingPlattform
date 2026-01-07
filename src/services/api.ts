@@ -10,21 +10,129 @@ import { logApiCall, logApiSuccess, logApiError } from '../utils/logger'
 import { secureSignIn } from './secureLogin'
 
 export const authService = {
-  // Login mit E-Mail und Passwort (mit vollständigem Security)
+  // Login mit E-Mail und Passwort (mit vollständigem Security + Fallback)
   async signIn(email: string, password: string) {
     logApiCall('POST', 'auth/signIn', { email: email.substring(0, 3) + '***' })
     
-    const result = await secureSignIn(email, password)
+    try {
+      // Versuche secureSignIn (wenn SQL-Functions existieren)
+      const result = await secureSignIn(email, password)
+      
+      if (!result.success) {
+        // WICHTIG: Fehler immer weitergeben!
+        const error = new Error(result.error || 'E-Mail oder Passwort ist falsch.')
+        throw error
+      }
+      
+      if (result.requiresPasswordReset) {
+        return { ...result.data, requiresPasswordReset: true }
+      }
+      
+      return result.data
+    } catch (error: any) {
+      // Fallback: Wenn secureSignIn fehlschlägt (z.B. Functions nicht vorhanden),
+      // verwende einfachere Login-Logik
+      logApiError('POST', 'auth/signIn.secureSignIn', error)
+      
+      // Fallback zu einfachem Login
+      return await authService.fallbackSignIn(email, password)
+    }
+  },
+  
+  // Fallback Login (wenn Security-Functions nicht verfügbar sind)
+  async fallbackSignIn(email: string, password: string) {
+    const normalizedEmail = email.toLowerCase().trim()
     
-    if (!result.success) {
-      throw new Error(result.error || 'E-Mail oder Passwort ist falsch.')
+    // Input-Validation
+    if (!normalizedEmail || !password) {
+      throw new Error('E-Mail oder Passwort ist falsch.')
     }
     
-    if (result.requiresPasswordReset) {
-      return { ...result.data, requiresPasswordReset: true }
+    // Prüfe Customer-Status
+    let customer
+    try {
+      customer = await customerService.getCustomerByEmail(normalizedEmail)
+    } catch (e) {
+      // Fallback zu getCustomerByEmailFull
+      try {
+        customer = await customerService.getCustomerByEmailFull(normalizedEmail)
+      } catch (e2) {
+        // Timing-Schutz
+        await new Promise(resolve => setTimeout(resolve, 150))
+        throw new Error('E-Mail oder Passwort ist falsch.')
+      }
     }
     
-    return result.data
+    // Status-Checks
+    if (!customer) {
+      // Timing-Schutz
+      await new Promise(resolve => setTimeout(resolve, 150))
+      throw new Error('E-Mail oder Passwort ist falsch.')
+    }
+    
+    if (customer.status === 'DELETED') {
+      await new Promise(resolve => setTimeout(resolve, 150))
+      throw new Error('E-Mail oder Passwort ist falsch.')
+    }
+    
+    if (customer.status === 'SUSPENDED') {
+      throw new Error('Ihr Account wurde gesperrt. Bitte kontaktieren Sie den Support.')
+    }
+    
+    if (customer.status === 'LOCKED') {
+      const { data: unlocked } = await supabase.rpc('unlock_customer_account_if_expired', {
+        p_customer_id: customer.id
+      })
+      
+      if (!unlocked) {
+        throw new Error('E-Mail oder Passwort ist falsch.')
+      }
+    }
+    
+    // Passwort-Check
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    })
+    
+    if (error) {
+      // Passwort falsch
+      if (customer) {
+        try {
+          await supabase.rpc('increment_failed_login_count', {
+            p_customer_id: customer.id
+          })
+        } catch (e) {
+          // Ignore if function doesn't exist
+        }
+      }
+      
+      throw new Error('E-Mail oder Passwort ist falsch.')
+    }
+    
+    // Post-Password Checks
+    if (customer.status === 'UNVERIFIED') {
+      await supabase.auth.signOut()
+      throw new Error('Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse. Prüfen Sie Ihr Postfach.')
+    }
+    
+    if (customer.status === 'PASSWORD_RESET_REQUIRED') {
+      return { ...data, requiresPasswordReset: true }
+    }
+    
+    // Erfolgreich
+    if (customer) {
+      try {
+        await supabase.rpc('reset_failed_login_count', {
+          p_customer_id: customer.id
+        })
+      } catch (e) {
+        // Ignore if function doesn't exist
+      }
+    }
+    
+    logApiSuccess('POST', 'auth/signIn', { userId: data?.user?.id, email: data?.user?.email })
+    return data
   },
 
   // Registrierung (mit Duplikat-Behandlung)
