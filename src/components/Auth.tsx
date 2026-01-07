@@ -21,7 +21,20 @@ function Auth() {
   useEffect(() => {
     console.log('🔍 showErrorPopup State geändert:', showErrorPopup)
     console.log('🔍 errorPopupMessage:', errorPopupMessage)
+    if (showErrorPopup) {
+      console.log('✅✅✅ POPUP SOLLTE JETZT SICHTBAR SEIN! ✅✅✅')
+    } else {
+      console.log('❌ Popup ist NICHT sichtbar')
+    }
   }, [showErrorPopup, errorPopupMessage])
+  
+  // Prüfe ob Komponente neu gemountet wird
+  useEffect(() => {
+    console.log('🔄 Auth Komponente gemountet/aktualisiert')
+    return () => {
+      console.log('🔄 Auth Komponente wird unmountet')
+    }
+  }, [])
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -85,9 +98,9 @@ function Auth() {
     e.stopPropagation()
     console.log('🔵 handleLogin gestartet')
     
-    // Reset error states
+    // Reset error states - ABER NICHT showErrorPopup hier zurücksetzen!
     setLoginError('')
-    setShowErrorPopup(false)
+    // setShowErrorPopup(false) - ENTFERNT! Das könnte das Problem sein!
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
       timeoutRef.current = null
@@ -120,11 +133,9 @@ function Auth() {
       console.log('🔴 Fehlermeldung:', errorMessage)
       setLoginError(errorMessage)
       setLoginLoading(false)
-      // Show error after loading is set to false to avoid state conflicts
-      setTimeout(() => {
-        console.log('🔴 showError wird nach setTimeout aufgerufen')
-        showError(errorMessage)
-      }, 0)
+      // Show error DIRECTLY - no setTimeout!
+      console.log('🔴 showError wird DIREKT aufgerufen')
+      showError(errorMessage)
     } finally {
       // Loading wird bereits im catch/success gesetzt
     }
