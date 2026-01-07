@@ -354,11 +354,15 @@ export const customerService = {
       .from('customers')
       .select('*')
       .eq('email', normalizedEmail)
-      .is('deleted_at', null)
-      .single()
+      .maybeSingle()
     
     if (error && error.code !== 'PGRST116') {
       throw error
+    }
+    
+    // Prüfe deleted_at manuell (falls Spalte existiert)
+    if (data && data.deleted_at) {
+      return null
     }
     
     return data || null
