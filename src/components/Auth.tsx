@@ -271,12 +271,16 @@ function Auth() {
               </div>
 
               {loginError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-shake">
-                  <strong>Fehler:</strong> {loginError}
-                  <br />
-                  <small className="text-red-600 mt-1 block">
-                    Bitte öffne die Browser-Konsole (F12) für mehr Details.
-                  </small>
+                <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg text-sm animate-shake">
+                  <div className="flex items-start">
+                    <svg className="w-5 h-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <div className="flex-1">
+                      <strong className="font-semibold">Fehler bei der Anmeldung:</strong>
+                      <p className="mt-1">{loginError}</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -372,12 +376,16 @@ function Auth() {
               </div>
 
               {registerError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-shake">
-                  <strong>Fehler:</strong> {registerError}
-                  <br />
-                  <small className="text-red-600 mt-1 block">
-                    Bitte öffne die Browser-Konsole (F12) für mehr Details.
-                  </small>
+                <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg text-sm animate-shake">
+                  <div className="flex items-start">
+                    <svg className="w-5 h-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <div className="flex-1">
+                      <strong className="font-semibold">Fehler bei der Registrierung:</strong>
+                      <p className="mt-1">{registerError}</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -387,6 +395,23 @@ function Auth() {
                 className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {registerLoading ? 'Wird registriert...' : 'Registrieren'}
+              </button>
+              
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  setIsRegister(false)
+                  setRegisterError('')
+                  setRegisterEmail('')
+                  setRegisterPassword('')
+                  setConfirmPassword('')
+                  setFirstName('')
+                  setLastName('')
+                }}
+                className="w-full mt-3 text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200 py-2"
+              >
+                ← Zurück zur Anmeldung
               </button>
             </form>
           )}
@@ -401,6 +426,7 @@ function Auth() {
                     onClick={(e) => {
                       e.preventDefault()
                       setIsRegister(false)
+                      setRegisterError('')
                     }}
                     className="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200 hover:underline"
                   >
